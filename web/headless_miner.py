@@ -19,9 +19,10 @@ user_dir = Path(sys.argv[2])
 cookies_path = user_dir / "cookies.jar"
 progress_file = user_dir / "progress.json"
 
-# Override LANG_PATH and COOKIES_PATH in constants BEFORE importing twitch
-# NOTE: Do NOT override WORKING_DIR - resource_path() uses it to locate icons/assets
+# Override WORKING_DIR, LANG_PATH and COOKIES_PATH in constants BEFORE importing twitch
+# WORKING_DIR must be PROJECT_ROOT so resource_path() finds icons/assets correctly
 import constants as constants_module
+constants_module.WORKING_DIR = PROJECT_ROOT
 constants_module.LANG_PATH = PROJECT_ROOT / "lang"
 constants_module.COOKIES_PATH = cookies_path
 
