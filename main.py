@@ -7,6 +7,7 @@ from multiprocessing import freeze_support
 if __name__ == "__main__":
     freeze_support()
     import io
+    import os
     import sys
     import signal
     import asyncio
@@ -39,6 +40,11 @@ if __name__ == "__main__":
 
     if sys.version_info < (3, 10):
         raise RuntimeError("Python 3.10 or higher is required")
+
+    # Suppress X11 Input Method registration on Linux to prevent
+    # XWayland/Mutter lockups during heavy Tkinter layout updates.
+    if sys.platform.startswith("linux") and "XMODIFIERS" not in os.environ:
+        os.environ["XMODIFIERS"] = "@im=none"
 
     class Parser(argparse.ArgumentParser):
         def __init__(self, *args, **kwargs) -> None:
@@ -106,6 +112,9 @@ if __name__ == "__main__":
     parser.add_argument("--tray", action="store_true")
     parser.add_argument("--log", action="store_true")
     parser.add_argument("--dump", action="store_true")
+    parser.add_argument("--web", action="store_true", help="Run web server mode")
+    parser.add_argument("--port", type=int, default=4295, help="Web server port (default: 4295)")
+    parser.add_argument("--host", default="0.0.0.0", help="Web server host (default: 0.0.0.0)")
     # undocumented debug args
     parser.add_argument(
         "--debug-ws", dest="_debug_ws", action="store_true", help=argparse.SUPPRESS
@@ -114,6 +123,25 @@ if __name__ == "__main__":
         "--debug-gql", dest="_debug_gql", action="store_true", help=argparse.SUPPRESS
     )
     args = parser.parse_args(namespace=ParsedArgs())
+
+    if args.web:
+        root.destroy()
+        del root, parser
+        from pathlib import Path
+        data_dir = Path(__file__).parent / "data"
+        data_dir.mkdir(exist_ok=True)
+        from web.auth import UserManager
+        um = UserManager()
+        if not um.admin_exists():
+            admin_pass_file = Path(__file__).parent / "config" / "admin_pass.txt"
+            default_pass = admin_pass_file.read_text().strip() if admin_pass_file.exists() else "admin"
+            try:
+                um.create_admin("admin", default_pass)
+            except Exception:
+                pass
+        from web.app import run
+        run(port=args.port, host=args.host)
+
     # load settings
     try:
         settings = Settings(args)

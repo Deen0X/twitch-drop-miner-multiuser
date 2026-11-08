@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - Twitch Drops Miner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        body { background: #0e0e11; color: #e0e0e0; }
+        .sidebar { background: #1b1b21; min-height: 100vh; border-right: 1px solid #2d2d35; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 10px 0 20px 0; text-align: center; min-height: 120px; }
+        .sidebar-logo { width: 80px; height: 80px; object-fit: contain; margin-bottom: 10px; }
+        .sidebar-title { font-size: 0.9rem; font-weight: bold; color: #9147ff; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar-footer { margin-top: auto; padding: 20px 0; text-align: center; font-size: 0.75rem; color: #666; }
+        .nav-link { color: #a0a0a0; border-radius: 8px; margin: 2px 0; }
+        .nav-link:hover, .nav-link.active { background: #2d2d35; color: #e0e0e0; }
+        .card { background: #1b1b21; border: 1px solid #2d2d35; border-radius: 12px; }
+        .card-header { background: #26262e; border-bottom: 1px solid #2d2d35; color: #a0a0a0; }
+        .btn-primary { background: #9147ff; border: none; }
+        .btn-primary:hover { background: #772ce8; }
+        .status-active { color: #00ff88; }
+        .status-inactive { color: #ff4444; }
+        .campaign-card { background: #1b1b21; border: 1px solid #2d2d35; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .campaign-art { width: 60px; height: 80px; object-fit: cover; border-radius: 4px; }
+        .drop-item { background: #26262e; border-radius: 6px; padding: 8px; margin: 4px 0; display: flex; align-items: center; gap: 10px; }
+        .drop-img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+        .benefit-img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; margin-right: 8px; }
+        .progress-bar-custom { height: 6px; border-radius: 3px; background: #3d3d45; }
+        .progress-bar-fill { height: 100%; border-radius: 3px; background: #9147ff; transition: width 0.3s; }
+        .campaign-status-active { color: #00ff88; }
+        .campaign-status-upcoming { color: #ffaa00; }
+        .campaign-status-expired { color: #ff4444; }
+        .game-name { font-size: 0.85rem; font-weight: bold; }
+        .campaign-time { font-size: 0.75rem; color: #a0a0a0; }
+        .restart-btn { background: #ffaa00; border: none; color: #000; }
+        .restart-btn:hover { background: #cc8800; }
+        .filter-checkbox { margin-right: 15px; }
+        .filter-checkbox label { cursor: pointer; padding: 4px 8px; border-radius: 4px; background: #2d2d35; }
+        .filter-checkbox input:checked + label { background: #9147ff; }
+        .view-toggle { margin-left: auto; }
+        .view-toggle .btn { font-size: 0.8rem; }
+        .view-toggle .btn.active { background: #9147ff; color: white; }
+        .btn-add { background: #9147ff; border: none; color: white; font-size: 0.75rem; padding: 4px 10px; }
+        .btn-add:hover { background: #772ce8; }
+        .btn-add:disabled { background: #555; cursor: not-allowed; }
+        .benefit-img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; margin-right: 8px; cursor: pointer; transition: transform 0.2s; }
+        .benefit-img:hover { transform: scale(1.1); }
+        .drop-img-modal { max-width: 90vw; max-height: 80vh; border-radius: 8px; }
+        .modal-drop-info { color: #e0e0e0; text-align: center; margin-top: 10px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar p-3">
+                <div class="sidebar-header">
+                    <img src="/static/logo.png" class="sidebar-logo" alt="Logo">
+                    <h5 class="sidebar-title">Twitch Drop Miner<br><small style="font-size: 0.7em; color: #772ce8;">Multiuser Drop</small></h5>
+                </div>
+                <div id="sidebar-display-name" style="font-size: 0.9rem; color: #ffffff; font-weight: bold; text-align: left; padding: 8px 0; border-bottom: 1px solid #2d2d35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ user.display_name }}</div>
+                <nav class="nav flex-column mt-2">
+                    <a class="nav-link" href="/dashboard">Dashboard</a>
+                    <a class="nav-link active" href="/inventory">Inventory</a>
+                    <a class="nav-link" href="/profile">Profile</a>
+                    {% if is_admin %}
+                    <a class="nav-link" href="/admin">Users</a>
+                    {% endif %}
+                    <a class="nav-link" href="/logout">Logout</a>
+                </nav>
+                <div class="sidebar-footer">
+                    By: DNX.Projects
+                </div>
+            </div>
+            <div class="col-md-10 p-4">
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h4 class="mb-3">Inventory & Status</h4>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>Drop Mining</span>
+                            </div>
+                            <div class="card-body text-center">
+                                <h2 id="mining-status" class="status-inactive">Inactive</h2>
+                                <p id="mining-info" class="text-muted mb-3">No drops being tracked</p>
+                                <button class="btn restart-btn" onclick="restartMiner()">Restart Miner</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <span>Current Campaign Progress</span>
+                            </div>
+                            <div class="card-body">
+                                <p id="current-campaign" class="mb-2">-</p>
+                                <p id="current-game" class="text-muted mb-2">-</p>
+                                <div class="progress-bar-custom mb-2">
+                                    <div id="campaign-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+                                </div>
+                                <small id="campaign-time-info" class="text-muted">-</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <span style="margin-right: 10px;">Filters:</span>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="f-active" onchange="updateFilters()">
+                                <label for="f-active">Active</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="f-upcoming" checked onchange="updateFilters()">
+                                <label for="f-upcoming">Upcoming</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="f-expired" onchange="updateFilters()">
+                                <label for="f-expired">Expired</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="f-not_linked" onchange="updateFilters()">
+                                <label for="f-not_linked">Not Linked</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="f-excluded" onchange="updateFilters()">
+                                <label for="f-excluded">Excluded</label>
+                            </div>
+                            <div class="filter-checkbox">
+                                <input type="checkbox" id="f-finished" onchange="updateFilters()">
+                                <label for="f-finished">Finished</label>
+                            </div>
+                            <div class="view-toggle">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-secondary active" id="btn-my-campaigns" onclick="setViewMode('my')">My Campaigns</button>
+                                    <button class="btn btn-sm btn-outline-secondary" id="btn-all-campaigns" onclick="setViewMode('all')">All Twitch</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" style="margin-left: 10px;" onclick="addAllVisible()">Add All</button>
+                    </div>
+                </div>
+
+                <div id="campaigns-container">
+                    <div class="text-center text-muted p-4">Loading campaigns...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allCampaigns = [];
+        let viewMode = 'my';
+        let currentPriority = [];
+        let settingsLoaded = false;
+
+        async function fetchProgress() {
+            try {
+                const resp = await fetch('/api/progress');
+                const data = await resp.json();
+
+                const statusEl = document.getElementById('mining-status');
+                const infoEl = document.getElementById('mining-info');
+
+                if (!data.mining) {
+                    statusEl.textContent = 'Inactive';
+                    statusEl.className = 'status-inactive';
+                    infoEl.textContent = 'Miner not running';
+                    document.getElementById('current-campaign').textContent = '-';
+                    document.getElementById('current-game').textContent = '-';
+                    document.getElementById('campaign-progress-bar').style.width = '0%';
+                    document.getElementById('campaign-time-info').textContent = '-';
+                } else if (data.waiting_campaigns) {
+                    statusEl.textContent = 'Waiting';
+                    statusEl.className = 'status-inactive';
+                    infoEl.textContent = 'No active campaigns to mine';
+                    document.getElementById('current-campaign').textContent = '-';
+                    document.getElementById('current-game').textContent = '-';
+                    document.getElementById('campaign-progress-bar').style.width = '0%';
+                    document.getElementById('campaign-time-info').textContent = '-';
+                } else if (data.currently_mining) {
+                    statusEl.textContent = 'Active';
+                    statusEl.className = 'status-active';
+                    const dropCount = Object.keys(data.drops || {}).length;
+                    infoEl.textContent = 'Mining ' + dropCount + ' drop' + (dropCount !== 1 ? 's' : '');
+                    
+                    if (data.current_campaign) {
+                        document.getElementById('current-campaign').textContent = data.current_campaign.name || '-';
+                        document.getElementById('current-game').textContent = data.current_campaign.game || '-';
+                        const progress = (data.current_campaign.current_minutes / data.current_campaign.required_minutes) * 100;
+                        document.getElementById('campaign-progress-bar').style.width = Math.min(progress, 100) + '%';
+                        document.getElementById('campaign-time-info').textContent = 
+                            (data.current_campaign.current_minutes || 0) + ' / ' + (data.current_campaign.required_minutes || 0) + ' min';
+                    }
+                } else {
+                    statusEl.textContent = 'Idle';
+                    statusEl.className = 'status-inactive';
+                    infoEl.textContent = 'Waiting for channels to mine';
+                }
+            } catch (e) {
+                console.error('Progress fetch error:', e);
+            }
+        }
+
+        async function fetchSettings() {
+            try {
+                const resp = await fetch('/api/settings');
+                const data = await resp.json();
+                console.log('Fetched settings:', data);
+                
+                viewMode = data.inventory_view_mode || 'my';
+                document.getElementById('btn-my-campaigns').classList.toggle('active', viewMode === 'my');
+                document.getElementById('btn-my-campaigns').classList.toggle('btn-outline-secondary', viewMode !== 'my');
+                document.getElementById('btn-all-campaigns').classList.toggle('active', viewMode === 'all');
+                document.getElementById('btn-all-campaigns').classList.toggle('btn-outline-secondary', viewMode !== 'all');
+
+                const filters = data.inventory_filters || {active: false, upcoming: true, expired: false, not_linked: false, excluded: false, finished: false};
+                document.getElementById('f-active').checked = filters.active;
+                document.getElementById('f-upcoming').checked = filters.upcoming;
+                document.getElementById('f-expired').checked = filters.expired;
+                document.getElementById('f-not_linked').checked = filters.not_linked;
+                document.getElementById('f-excluded').checked = filters.excluded;
+                document.getElementById('f-finished').checked = filters.finished;
+
+                currentPriority = data.priority || [];
+                settingsLoaded = true;
+            } catch (e) {
+                console.error('Settings fetch error:', e);
+                settingsLoaded = true;
+            }
+        }
+
+        async function fetchInventory() {
+            try {
+                const resp = await fetch('/api/inventory');
+                const data = await resp.json();
+
+                if (Array.isArray(data)) {
+                    allCampaigns = data;
+                } else if (data.campaigns) {
+                    allCampaigns = data.campaigns;
+                } else {
+                    allCampaigns = [];
+                }
+                renderCampaigns();
+                updateAddButtons();
+            } catch (e) {
+                console.error('Inventory fetch error:', e);
+                document.getElementById('campaigns-container').innerHTML =
+                    '<div class="text-center text-muted p-4">Error loading campaigns</div>';
+            }
+        }
+
+        async function fetchCurrentPriority() {
+            try {
+                const resp = await fetch('/api/settings');
+                const data = await resp.json();
+                currentPriority = data.priority || [];
+                updateAddButtons();
+            } catch (e) {
+                console.error('Error fetching priority:', e);
+            }
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.getElementById('btn-my-campaigns').classList.toggle('active', mode === 'my');
+            document.getElementById('btn-my-campaigns').classList.toggle('btn-outline-secondary', mode !== 'my');
+            document.getElementById('btn-all-campaigns').classList.toggle('active', mode === 'all');
+            document.getElementById('btn-all-campaigns').classList.toggle('btn-outline-secondary', mode !== 'all');
+            renderCampaigns();
+            saveInventorySettings();
+        }
+
+        function updateFilters() {
+            renderCampaigns();
+            saveInventorySettings();
+        }
+
+        async function saveInventorySettings() {
+            if (!settingsLoaded) return;
+            const filters = {
+                active: document.getElementById('f-active').checked,
+                upcoming: document.getElementById('f-upcoming').checked,
+                expired: document.getElementById('f-expired').checked,
+                not_linked: document.getElementById('f-not_linked').checked,
+                excluded: document.getElementById('f-excluded').checked,
+                finished: document.getElementById('f-finished').checked
+            };
+            console.log('Saving filters:', filters);
+            console.log('View mode:', viewMode);
+            try {
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        inventory_view_mode: viewMode,
+                        inventory_filters: filters
+                    })
+                });
+                console.log('Save response:', resp.status, await resp.text());
+            } catch (e) {
+                console.error('Error saving inventory settings:', e);
+            }
+        }
+
+        function shouldShowCampaign(campaign) {
+            // View mode filter - my shows all (linked + not linked), all shows all Twitch
+            // Checkboxes determine what to show
+            const filters = {
+                'f-active': campaign.active,
+                'f-upcoming': campaign.upcoming,
+                'f-expired': campaign.expired,
+                'f-not_linked': !campaign.linked,
+                'f-excluded': campaign.game && campaign.game.excluded,
+                'f-finished': campaign.finished
+            };
+
+            for (const [id, value] of Object.entries(filters)) {
+                if (document.getElementById(id).checked && value) return true;
+            }
+            return false;
+        }
+
+        function renderCampaigns() {
+            const container = document.getElementById('campaigns-container');
+
+            if (!allCampaigns || allCampaigns.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted p-4">No campaigns found</div>';
+                return;
+            }
+
+            let html = '';
+
+            allCampaigns.forEach(campaign => {
+                if (!shouldShowCampaign(campaign)) return;
+
+                const statusClass = campaign.active ? 'campaign-status-active' :
+                                   campaign.upcoming ? 'campaign-status-upcoming' : 'campaign-status-expired';
+                const statusText = campaign.active ? 'Active' : campaign.upcoming ? 'Upcoming' : 'Expired';
+
+                let dropsHtml = '';
+                if (campaign.drops && campaign.drops.length > 0) {
+                    campaign.drops.forEach(drop => {
+                        const progressPct = (drop.progress || 0) * 100;
+                        const dropStatus = drop.is_claimed ? 'Claimed' :
+                                         drop.can_claim ? 'Can Claim' :
+                                         progressPct >= 100 ? 'Ready' : progressPct.toFixed(1) + '%';
+                        const dropStatusColor = drop.is_claimed ? '#00ff88' :
+                                              drop.can_claim ? '#ffaa00' : '#e0e0e0';
+
+                        // Build benefit images HTML
+                        let benefitImagesHtml = '';
+                        if (drop.benefit_images && drop.benefit_images.length > 0) {
+                            benefitImagesHtml = drop.benefit_images.slice(0, 3).map(img =>
+                                `<img class="benefit-img" src="${img}" onclick="showImageModal('${img}', '${(drop.name || '').replace(/'/g, "\\'")}', '${(campaign.game?.name || '').replace(/'/g, "\\'")}', '${(campaign.name || '').replace(/'/g, "\\'")}')" onerror="this.style.display='none'">`
+                            ).join('');
+                        } else if (drop.image_url) {
+                            benefitImagesHtml = `<img class="benefit-img" src="${drop.image_url}" onclick="showImageModal('${drop.image_url}', '${(drop.name || '').replace(/'/g, "\\'")}', '${(campaign.game?.name || '').replace(/'/g, "\\'")}', '${(campaign.name || '').replace(/'/g, "\\'")}')" onerror="this.style.display='none'">`;
+                        }
+
+                        dropsHtml += `
+                            <div class="drop-item">
+                                ${benefitImagesHtml}
+                                <div style="flex: 1">
+                                    <div style="font-size: 0.8rem;">${drop.name || 'Unknown Drop'}</div>
+                                    <div class="progress-bar-custom" style="margin-top: 4px;">
+                                        <div class="progress-bar-fill" style="width: ${progressPct}%"></div>
+                                    </div>
+                                </div>
+                                <span style="font-size: 0.75rem; color: ${dropStatusColor};">${dropStatus}</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                html += `
+                    <div class="campaign-card" data-game-id="${campaign.game?.id || ''}">
+                        <div class="d-flex gap-3">
+                            ${campaign.image_url ? `<img class="campaign-art" src="${campaign.image_url}" onclick="showImageModal('${campaign.image_url}', '${(campaign.game?.name || campaign.name || '').replace(/'/g, "\\'")}', '${campaign.game?.name || ''}', '${campaign.name || ''}')" onerror="this.style.display='none'">` : '<div style="width:60px;height:80px;background:#26262e;border-radius:4px;"></div>'}
+                            <div style="flex: 1">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="game-name">${campaign.game?.name || campaign.name || 'Unknown Game'}</div>
+                                        <div class="campaign-time">${campaign.name || ''}</div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="${statusClass}" style="font-size: 0.75rem;">${statusText}</span>
+                                        ${!campaign.linked ? `<a href="${campaign.link_url || 'https://www.twitch.tv/drops/campaigns'}" target="_blank" style="font-size: 0.75rem; color: #ff4444; text-decoration: underline;">Not Linked</a>` : ''}
+                                        <button class="btn btn-add" style="background: #00ff88; color: #000;" onclick="addToExclude('${campaign.game?.id || ''}', '${(campaign.game?.name || '').replace(/'/g, "\\'")}')">Exclude</button>
+                                        <button class="btn btn-add" onclick="addToPriority('${campaign.game?.id || ''}', '${(campaign.game?.name || '').replace(/'/g, "\\'")}')">Add</button>
+                                    </div>
+                                </div>
+                                ${dropsHtml}
+                                <div class="campaign-time mt-2">
+                                    ${campaign.starts_at ? 'Start: ' + new Date(campaign.starts_at).toLocaleString() : ''}
+                                    ${campaign.ends_at ? ' | End: ' + new Date(campaign.ends_at).toLocaleString() : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html || '<div class="text-center text-muted p-4">No campaigns match filters</div>';
+        }
+
+        async function addToPriority(gameId, gameName) {
+            try {
+                const resp = await fetch('/api/priority/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({game_id: gameId, game_name: gameName})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    currentPriority = data.priority || [];
+                    updateAddButtons();
+                }
+            } catch (e) {
+                console.error('Error adding to priority:', e);
+            }
+        }
+
+        async function addToExclude(gameId, gameName) {
+            try {
+                const resp = await fetch('/api/exclude/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({game_id: gameId, game_name: gameName})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    currentExclude = data.exclude || [];
+                    updateExcludeButtons();
+                }
+            } catch (e) {
+                console.error('Error adding to exclude:', e);
+            }
+        }
+
+        function updateExcludeButtons() {
+            document.querySelectorAll('.campaign-card').forEach(card => {
+                const gameNameEl = card.querySelector('.game-name');
+                const excludeBtn = card.querySelector('.btn-add:first-child');
+                if (excludeBtn && gameNameEl) {
+                    const gameName = gameNameEl.textContent.trim().toLowerCase();
+                    const isInExclude = currentExclude.some(e => e.toLowerCase() === gameName);
+                    if (isInExclude) {
+                        excludeBtn.disabled = true;
+                        excludeBtn.textContent = 'Excluded';
+                        excludeBtn.style.background = '#555';
+                    } else {
+                        excludeBtn.disabled = false;
+                        excludeBtn.textContent = 'Exclude';
+                        excludeBtn.style.background = '#00ff88';
+                        excludeBtn.style.color = '#000';
+                    }
+                }
+            });
+        }
+
+        function addAllVisible() {
+            allCampaigns.forEach(campaign => {
+                if (shouldShowCampaign(campaign) && campaign.game?.id) {
+                    addToPriority(campaign.game.id, campaign.game.name);
+                }
+            });
+        }
+
+        function updateAddButtons() {
+            document.querySelectorAll('.campaign-card').forEach(card => {
+                const gameId = card.dataset.gameId;
+                const btn = card.querySelector('.btn-add');
+                if (btn && gameId) {
+                    const isInPriority = currentPriority.some(p => p.id === gameId);
+                    btn.disabled = isInPriority;
+                    btn.textContent = isInPriority ? 'Added' : 'Add';
+                }
+            });
+        }
+
+        async function restartMiner() {
+            const btn = document.querySelector('.restart-btn');
+            btn.disabled = true;
+            await fetch('/api/restart', {method: 'POST'});
+            setTimeout(() => { btn.disabled = false; fetchProgress(); }, 3000);
+        }
+
+        // Initial load
+        fetchSettings().then(() => {
+            fetchProgress();
+            fetchInventory();
+        });
+
+        // Polling every 30 seconds
+        setInterval(fetchProgress, 30000);
+        setInterval(fetchInventory, 30000);
+
+        function showImageModal(src, name, gameName, campaignName) {
+            const modal = document.getElementById('imgModal');
+            document.getElementById('imgModalContent').src = src;
+            document.getElementById('imgModalName').textContent = name || '';
+            document.getElementById('imgModalGame').textContent = (gameName || '') + (campaignName ? ' - ' + campaignName : '');
+            modal.style.display = 'flex';
+        }
+
+        function closeImageModal() {
+            document.getElementById('imgModal').style.display = 'none';
+        }
+
+        document.getElementById('imgModal').onclick = function(e) {
+            if (e.target === this) closeImageModal();
+        };
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeImageModal();
+        });
+    </script>
+
+    <div id="imgModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; cursor: pointer;" onclick="closeImageModal()">
+        <img id="imgModalContent" class="drop-img-modal" src="" onclick="event.stopPropagation(); closeImageModal()">
+        <div id="imgModalName" class="modal-drop-info"></div>
+        <div id="imgModalGame" class="modal-drop-info" style="font-size: 0.75rem; color: #9147ff; margin-top: 5px;"></div>
+        <button onclick="closeImageModal()" style="position: absolute; top: 20px; right: 20px; background: #9147ff; border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Close</button>
+    </div>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Twitch Drops Miner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <style>
+        body { background: #0e0e11; color: #e0e0e0; }
+        .card { background: #1b1b21; border: 1px solid #2d2d35; border-radius: 12px; }
+        .card-header { background: #26262e; border-bottom: 1px solid #2d2d35; color: #a0a0a0; }
+        .form-control { background: #26262e; border: 1px solid #3d3d45; color: #e0e0e0; }
+        .form-control:focus { background: #26262e; border-color: #9147ff; color: #e0e0e0; box-shadow: 0 0 0 0.2rem rgba(145,71,255,0.25); }
+        .btn-primary { background: #9147ff; border: none; }
+        .btn-primary:hover { background: #772ce8; }
+        .sidebar { background: #1b1b21; min-height: 100vh; border-right: 1px solid #2d2d35; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 10px 0 20px 0; text-align: center; min-height: 120px; }
+        .sidebar-logo { width: 80px; height: 80px; object-fit: contain; margin-bottom: 10px; }
+        .sidebar-title { font-size: 0.9rem; font-weight: bold; color: #9147ff; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar-footer { margin-top: auto; padding: 20px 0; text-align: center; font-size: 0.75rem; color: #666; }
+        .nav-link { color: #a0a0a0; border-radius: 8px; margin: 2px 0; }
+        .nav-link:hover { background: #2d2d35; color: #e0e0e0; }
+        .profile-label { color: #e0e0e0; font-weight: bold; display: block; margin-bottom: 0.25rem; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar p-3">
+                <div class="sidebar-header">
+                    <img src="/static/logo.png" class="sidebar-logo" alt="Logo">
+                    <h5 class="sidebar-title">Twitch Drop Miner<br><small style="font-size: 0.7em; color: #772ce8;">Multiuser Drop</small></h5>
+                </div>
+                <div id="sidebar-display-name" style="font-size: 0.9rem; color: #ffffff; font-weight: bold; text-align: left; padding: 8px 0; border-bottom: 1px solid #2d2d35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ user.display_name }}</div>
+                <nav class="nav flex-column mt-2">
+                    <a class="nav-link" href="/dashboard">Dashboard</a>
+                    <a class="nav-link" href="/inventory">Inventory</a>
+                    <a class="nav-link active" href="/profile">Profile</a>
+                    {% if is_admin %}
+                    <a class="nav-link" href="/admin">Users</a>
+                    {% endif %}
+                    <a class="nav-link" href="/logout">Logout</a>
+                </nav>
+                <div class="sidebar-footer">
+                    By: DNX.Projects
+                </div>
+            </div>
+            <div class="col-md-10 p-4">
+                <h4 class="mb-4">Profile</h4>
+
+                <div class="card mb-4">
+                    <div class="card-header">Display Profile</div>
+                    <div class="card-body">
+                        <form id="displayNameForm">
+                            <div class="mb-3">
+                                <label class="profile-label">Display Name</label>
+                                <input type="text" id="display_name" class="form-control" value="{{ user.display_name }}" maxlength="32">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Display Name</button>
+                        </form>
+                        <div id="dn-message" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">Change Password</div>
+                    <div class="card-body">
+                        <form id="passwordForm">
+                            <div class="mb-3">
+                                <label class="profile-label">Current Password</label>
+                                <input type="password" id="current_password" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="profile-label">New Password</label>
+                                <input type="password" id="new_password" class="form-control" required minlength="4">
+                            </div>
+                            <div class="mb-3">
+                                <label class="profile-label">Confirm New Password</label>
+                                <input type="password" id="confirm_password" class="form-control" required minlength="4">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Change Password</button>
+                        </form>
+                        <div id="message" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">Twitch Account Link</div>
+                    <div class="card-body">
+                        <p id="link-status" class="mb-3" style="color: #e0e0e0;">Loading status...</p>
+                        <div id="link-actions"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="codeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Twitch Activation Code</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted mb-2">Enter this code on Twitch's activation page:</p>
+                    <h2 id="code-display" class="mb-3" style="color: #9147ff; font-family: monospace; letter-spacing: 4px;"></h2>
+                    <a id="code-link" href="#" target="_blank" class="btn btn-primary mb-2">Open Twitch Activation Page</a>
+                    <p class="text-muted small mt-3">Keep this window open while you enter the code on Twitch. Status will update automatically.</p>
+                    <div id="code-status" class="mt-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function checkLinkStatus() {
+            try {
+                const resp = await fetch('/api/code-status');
+                const data = await resp.json();
+                const actions = document.getElementById('link-actions');
+                const status = document.getElementById('link-status');
+                if (data.status === 'linked') {
+                    status.innerHTML = '<span style="color: #00ff88;">✓ Account is linked and ready for mining</span>';
+                    actions.innerHTML = '';
+                } else if (data.status === 'not_generated') {
+                    status.innerHTML = '<span style="color: #e0e0e0;">No code generated yet. Generate one to link your Twitch account.</span>';
+                    actions.innerHTML = '<button class="btn btn-primary" onclick="generateCode()">Generate Code</button>';
+                } else if (data.status === 'pending') {
+                    status.innerHTML = '<span style="color: #ffaa00;">⏳ Code generated, waiting for Twitch confirmation...</span>';
+                    actions.innerHTML = '<button class="btn btn-secondary" onclick="checkLinkStatus()">Check Status</button>';
+                }
+            } catch (e) {
+                document.getElementById('link-status').innerHTML = '<span style="color: #ff4444;">Error checking status</span>';
+            }
+        }
+
+        async function generateCode() {
+            try {
+                const resp = await fetch('/api/generate-code');
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('code-display').textContent = data.user_code;
+                    document.getElementById('code-link').href = data.verification_uri;
+                    document.getElementById('code-status').innerHTML = '<span class="text-muted">Waiting for confirmation...</span>';
+                    new bootstrap.Modal(document.getElementById('codeModal')).show();
+                    pollCodeStatus();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to generate code'));
+                }
+            } catch (e) {
+                alert('Error: ' + e);
+            }
+        }
+
+        let pollInterval = null;
+        function pollCodeStatus() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/code-status');
+                    const data = await resp.json();
+                    const statusEl = document.getElementById('code-status');
+                    if (data.status === 'linked') {
+                        statusEl.innerHTML = '<span style="color: #00ff88;">✓ Account linked successfully!</span>';
+                        clearInterval(pollInterval);
+                        setTimeout(() => {
+                            bootstrap.Modal.getInstance(document.getElementById('codeModal')).hide();
+checkLinkStatus();
+
+        document.getElementById('displayNameForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const dn = document.getElementById('display_name').value;
+            const msg = document.getElementById('dn-message');
+            try {
+                const resp = await fetch('/api/change-display-name', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'display_name=' + encodeURIComponent(dn)
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    msg.innerHTML = '<span style="color: #00ff88;">Display name saved</span>';
+                } else {
+                    msg.innerHTML = '<span style="color: #ff4444;">' + (data.detail || 'Error') + '</span>';
+                }
+            } catch (e) {
+                msg.innerHTML = '<span style="color: #ff4444;">Error: ' + e + '</span>';
+            }
+        };
+                        }, 2000);
+                    } else if (data.status === 'pending') {
+                        statusEl.innerHTML = '<span class="text-muted">Still waiting... (check Twitch activation page)</span>';
+                    } else if (data.status === 'failed') {
+                        statusEl.innerHTML = '<span style="color: #ff4444;">Error: ' + (data.error || 'Failed') + '</span>';
+                        clearInterval(pollInterval);
+                    }
+                } catch (e) {
+                    console.error('Poll error:', e);
+                }
+            }, 3000);
+        }
+
+        document.getElementById('passwordForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const current = document.getElementById('current_password').value;
+            const new_pass = document.getElementById('new_password').value;
+            const confirm = document.getElementById('confirm_password').value;
+            const msg = document.getElementById('message');
+
+            if (new_pass !== confirm) {
+                msg.innerHTML = '<div class="alert alert-danger">New passwords do not match</div>';
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/change-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'current_password=' + encodeURIComponent(current) + '&new_password=' + encodeURIComponent(new_pass)
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    msg.innerHTML = '<div class="alert alert-success">Password changed successfully</div>';
+                    document.getElementById('passwordForm').reset();
+                } else {
+                    msg.innerHTML = '<div class="alert alert-danger">' + (data.detail || 'Error') + '</div>';
+                }
+            } catch (e) {
+                msg.innerHTML = '<div class="alert alert-danger">Error: ' + e + '</div>';
+            }
+        };
+
+        checkLinkStatus();
+
+        document.getElementById('displayNameForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const dn = document.getElementById('display_name').value;
+            const msg = document.getElementById('dn-message');
+            try {
+                const resp = await fetch('/api/change-display-name', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'display_name=' + encodeURIComponent(dn)
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    msg.innerHTML = '<div class="alert alert-success">Display name saved</div>';
+                    document.getElementById('sidebar-display-name').textContent = dn;
+                } else {
+                    msg.innerHTML = '<div class="alert alert-danger">' + (data.detail || 'Error') + '</div>';
+                }
+            } catch (e) {
+                msg.innerHTML = '<div class="alert alert-danger">Error: ' + e + '</div>';
+            }
+        };
+    </script>
+</body>
+</html>
