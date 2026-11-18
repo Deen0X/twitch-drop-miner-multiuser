@@ -23,7 +23,7 @@ echo [4/4] Starting container...
 docker run -d ^
     --name dnx-twitch-miner-multiuser-mod ^
     -p 4295:4295 ^
-    -v "D:/docker/Twitch-Miner-multi:/app" ^
+    -v "%CD%:/app" ^
     --restart unless-stopped ^
     dnx-twitch-miner-multiuser-mod
 
@@ -31,7 +31,7 @@ echo.
 echo =========================================
 echo   Done!
 echo   Web UI: http://localhost:4295
-echo   Logs: D:\docker\Twitch-Miner-multi\output.log
+echo   Logs: %CD%\output.log
 echo =========================================
 echo.
 pause

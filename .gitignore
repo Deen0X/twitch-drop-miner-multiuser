@@ -9,6 +9,7 @@ __pycache__
 /*.tmp
 /Twitch Drops Miner
 # Dev files
+*.new
 /env
 /cache
 /*.jar
@@ -25,3 +26,46 @@ settings.json
 /*.AppImage.zsync
 .DS_Store
 *.app
+
+# ── AI / workflow (no forma parte de la app) ─────────────────────
+/.opencode/
+/.opencode.old/
+/.antigravity/
+/.vscode/
+/AGENTS.md
+/docs/
+
+# ── Datos locales y secretos (NUNCA commitear) ──────────────────
+/data/
+/config/
+/config1/
+/web/cache/
+/cache/
+/samplecode/
+/test/
+/debug_*.py
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.jar
+cookies.jar
+settings.json
+progress.json
+history.json
+inventory_cache.json
+.secret_key
+.telegram_token
+.github_token
+.env
+.tcloud.env
+*.log
+output.log
+dump.dat
+lock.file
+*.pyc
+__pycache__/
+.venv/
+env/
+node_modules/
+

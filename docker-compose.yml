@@ -10,10 +10,11 @@ services:
       - "4295:4295"
     volumes:
       # Mount project directory from disk - changes to code don't require rebuild
-      - D:\Develop-AI-OC\Twitch-Miner-multi:C:\app
+      - ./:/app
+    working_dir: /app
     environment:
-      - APP_NAME=TwitchMinerDeen0X
+      - APP_NAME=TwitchMinerMultiUser
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
     # Run directly from mounted volume (no COPY in Dockerfile for app code)
-    command: python C:/app/main.py --web --host 0.0.0.0 --port 4295
+    command: python /app/main.py --web --host 0.0.0.0 --port 4295
