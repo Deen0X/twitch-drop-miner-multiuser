@@ -25,6 +25,10 @@ import constants as constants_module
 constants_module.WORKING_DIR = PROJECT_ROOT
 constants_module.LANG_PATH = PROJECT_ROOT / "lang"
 constants_module.COOKIES_PATH = cookies_path
+# One cache per user: the shared web/cache/mapping.json was written by every
+# miner at once and a lost race killed the process (FileNotFoundError on replace).
+constants_module.CACHE_PATH = user_dir / "cache"
+constants_module.CACHE_DB = constants_module.CACHE_PATH / "mapping.json"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s: %(message)s')

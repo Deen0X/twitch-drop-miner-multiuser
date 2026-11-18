@@ -221,6 +221,13 @@ if __name__ == "__main__":
                 logger.info(line.decode().strip())
         except Exception:
             pass
+        finally:
+            # The subprocess ended (crash or clean exit); let the monitor decide
+            # whether it is worth restarting.
+            code = self._process.returncode if self._process else None
+            if not self._shutdown_event.is_set():
+                self._status.running = False
+                self._status.state = f"exited ({code})"
 
     async def stop(self):
         logger.info(f"Instance {self.user_id} stop() called")
@@ -353,14 +360,24 @@ class MultiRunner:
         while True:
             await asyncio.sleep(30)
             for inst in list(self._instances.values()):
-                if not inst._status.running and not inst._shutdown_event.is_set():
-                    state = str(inst._status.state) if inst._status.state else ""
-                    # Only restart if it's a recoverable error, not save() issues or GUI errors
-                    if "save" not in state.lower() and "icon" not in state.lower() and "error" in state:
-                        logger.warning(f"Instance {inst.user_id} died ({state}), attempting restart")
-                        await inst.start()
-                    elif "save" in state.lower():
-                        logger.error(f"Instance {inst.user_id} has save() error - will not auto-restart")
+                if inst._status.running or inst._shutdown_event.is_set():
+                    continue
+                state = str(inst._status.state) if inst._status.state else ""
+                # Never auto-restart when the admin/user stopped it on purpose.
+                if state == "stopped":
+                    continue
+                # A process that dies seconds after starting is usually a bad or
+                # expired session; retrying would only spam the log.
+                uptime = time.time() - (inst._started_at or 0)
+                if uptime < 120:
+                    logger.warning(
+                        f"Instance {inst.user_id} exited after {int(uptime)}s ({state}); "
+                        "not restarting automatically"
+                    )
+                    inst._status.state = "stopped"
+                    continue
+                logger.warning(f"Instance {inst.user_id} died ({state}), attempting restart")
+                await inst.start()
 
     async def shutdown(self):
         if self._monitor_task:
