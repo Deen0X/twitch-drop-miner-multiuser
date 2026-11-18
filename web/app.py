@@ -1193,7 +1193,7 @@ async def _revoke_twitch_token(cookies_path: Path) -> bool:
     try:
         import aiohttp
         from yarl import URL
-        from web.device_code_manager import DEVICE_CLIENT_ID
+        from web.device_code_manager import DEVICE_CLIENT_ID, LEGACY_CLIENT_ID
 
         jar = aiohttp.CookieJar()
         jar.load(cookies_path)
@@ -1205,22 +1205,25 @@ async def _revoke_twitch_token(cookies_path: Path) -> bool:
         return False
     if not token:
         return False
-    try:
-        async with aiohttp.ClientSession() as http:
-            async with http.post(
-                "https://id.twitch.tv/oauth2/revoke",
-                headers={
-                    "Client-ID": DEVICE_CLIENT_ID,
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-                data={"client_id": DEVICE_CLIENT_ID, "token": token},
-            ) as resp:
-                if resp.status != 200:
-                    logger.warning("Twitch token revoke failed: %s", resp.status)
-                return resp.status == 200
-    except Exception as exc:
-        logger.warning("Twitch token revoke error: %s", exc)
-        return False
+    # Tokens linked through the web device flow use the mobile-web client, older
+    # ones use the Android client; the revoke endpoint needs the matching id.
+    for client_id in (DEVICE_CLIENT_ID, LEGACY_CLIENT_ID):
+        try:
+            async with aiohttp.ClientSession() as http:
+                async with http.post(
+                    "https://id.twitch.tv/oauth2/revoke",
+                    headers={
+                        "Client-ID": client_id,
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    data={"client_id": client_id, "token": token},
+                ) as resp:
+                    if resp.status == 200:
+                        return True
+        except Exception as exc:
+            logger.warning("Twitch token revoke error: %s", exc)
+    logger.warning("Twitch token revoke failed for both clients")
+    return False
 
 
 @app.post("/api/twitch/logout")

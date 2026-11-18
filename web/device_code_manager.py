@@ -18,6 +18,9 @@ DEVICE_CODE_STORE = Path(__file__).parent.parent / "data" / "device_codes.json"
 # NOTE: The ANDROID_APP id (kd1unb4b3q4t58fwlpcbzcbnm76a8fp) no longer allows the
 # device grant ("invalid client"); the mobile web client still does.
 DEVICE_CLIENT_ID = "r8s4dac0uhzifbpu9sjdiwzctle17ff"
+# Old client used before Twitch disabled the device grant for it. Kept only to
+# revoke tokens that were issued back then.
+LEGACY_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
 
 
 def _load_codes() -> dict:
@@ -179,6 +182,7 @@ class DeviceCodeManager:
                             URL("https://www.twitch.tv")
                         )
                         cookie_jar.save(cookies_file)
+                        self._mark_client(user_dir, "mobile_web")
                         await self._restart_miner(info.user_id, user_dir)
                     else:
                         info.error = "Client ID mismatch - invalid token"
@@ -186,6 +190,28 @@ class DeviceCodeManager:
                 else:
                     info.error = "Token validation failed"
                     info.status = "failed"
+
+    @staticmethod
+    def _mark_client(user_dir: Path, client: str) -> None:
+        """Persist which Twitch client issued the token, so the miner matches it."""
+        settings_path = user_dir / "settings.json"
+        data = {}
+        if settings_path.exists():
+            try:
+                with open(settings_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        if not isinstance(data, dict):
+            data = {}
+        if data.get("twitch_client") == client:
+            return
+        data["twitch_client"] = client
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as exc:
+            logger.warning(f"Could not persist twitch_client for {user_dir}: {exc}")
 
     async def _restart_miner(self, user_id: int, user_dir: Path) -> None:
         """The miner only reads cookies at startup, so restart it after linking."""

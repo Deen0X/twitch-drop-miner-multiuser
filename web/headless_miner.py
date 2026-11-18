@@ -213,6 +213,11 @@ async def main():
 
     client = Twitch(settings)
 
+    # The web device flow links accounts with the mobile-web client, and the
+    # miner refuses tokens whose client_id doesn't match its own.
+    if settings.twitch_client == "mobile_web":
+        client._client_type = constants_module.ClientType.MOBILE_WEB
+
     # Start inventory cache task with weak reference to client
     cache_task = asyncio.create_task(UserSettings.inventory_cache_task(lambda: client))
 
