@@ -229,10 +229,17 @@ async def main():
 
     twitch_module._AuthState._browser_login = _no_browser_login
 
-    # The web device flow links accounts with the mobile-web client, and the
-    # miner refuses tokens whose client_id doesn't match its own.
-    if settings.twitch_client == "mobile_web":
-        client._client_type = constants_module.ClientType.MOBILE_WEB
+    # The miner validates that the token's client matches its own. Accounts
+    # linked with the browser cookie use the web client; older ones the Android
+    # app; the (now unusable) device flow used the mobile web client.
+    _clients = {
+        "web": constants_module.ClientType.WEB,
+        "android": constants_module.ClientType.ANDROID_APP,
+        "mobile_web": constants_module.ClientType.MOBILE_WEB,
+    }
+    _client = _clients.get(getattr(settings, "twitch_client", None))
+    if _client is not None:
+        client._client_type = _client
 
     # Start inventory cache task with weak reference to client
     cache_task = asyncio.create_task(UserSettings.inventory_cache_task(lambda: client))

@@ -1205,9 +1205,9 @@ async def _revoke_twitch_token(cookies_path: Path) -> bool:
         return False
     if not token:
         return False
-    # Tokens linked through the web device flow use the mobile-web client, older
-    # ones use the Android client; the revoke endpoint needs the matching id.
-    for client_id in (DEVICE_CLIENT_ID, LEGACY_CLIENT_ID):
+    # Tokens linked from the browser use the web client; older ones the Android
+    # app, and the device flow the mobile web client. Try each id.
+    for client_id in (DEVICE_CLIENT_ID, LEGACY_CLIENT_ID, "kimne78kx3ncx6brgo4mv6wki5h1ko"):
         try:
             async with aiohttp.ClientSession() as http:
                 async with http.post(
@@ -1224,6 +1224,118 @@ async def _revoke_twitch_token(cookies_path: Path) -> bool:
             logger.warning("Twitch token revoke error: %s", exc)
     logger.warning("Twitch token revoke failed for both clients")
     return False
+
+
+async def _validate_twitch_token(token: str) -> Optional[dict]:
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as http:
+            async with http.get(
+                "https://id.twitch.tv/oauth2/validate",
+                headers={"Authorization": f"OAuth {token}"},
+                timeout=aiohttp.ClientTimeout(total=20),
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                return await resp.json(content_type=None)
+    except Exception as exc:
+        logger.debug("Twitch token validation failed: %s", exc)
+        return None
+
+
+async def _gql_current_user(token: str, client_id: str) -> bool:
+    """GQL only accepts tokens from certain clients; test it before storing."""
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as http:
+            async with http.post(
+                "https://gql.twitch.tv/gql",
+                json={"query": "query { currentUser { id login } }"},
+                headers={"Client-ID": client_id, "Authorization": f"OAuth {token}"},
+                timeout=aiohttp.ClientTimeout(total=20),
+            ) as resp:
+                if resp.status != 200:
+                    return False
+                data = await resp.json(content_type=None)
+                return bool(((data.get("data") or {}).get("currentUser") or {}).get("login"))
+    except Exception as exc:
+        logger.debug("Twitch GQL check failed: %s", exc)
+        return False
+
+
+TWITCH_CLIENTS = {
+    "kimne78kx3ncx6brgo4mv6wki5h1ko": "web",
+    "kd1unb4b3q4t58fwlpcbzcbnm76a8fp": "android",
+    "r8s4dac0uhzifbpu9sjdiwzctle17ff": "mobile_web",
+}
+
+
+@app.post("/api/twitch/token")
+async def api_twitch_token(request: Request):
+    """Link a Twitch account from the auth-token cookie of the user's browser."""
+    session = _require_auth(request)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    token = str(payload.get("token") or "").strip()
+    if token.lower().startswith("oauth "):
+        token = token[6:].strip()
+    if not token:
+        raise HTTPException(400, "Paste the auth-token value")
+
+    info = await _validate_twitch_token(token)
+    if not info:
+        raise HTTPException(400, "Twitch rejected this token (invalid or expired)")
+    client_id = str(info.get("client_id") or "")
+    client = TWITCH_CLIENTS.get(client_id)
+    if not client:
+        raise HTTPException(400, "This token was issued by an unsupported Twitch client")
+    if not await _gql_current_user(token, client_id):
+        raise HTTPException(
+            400,
+            "Twitch GQL rejects this token. Copy the auth-token cookie from twitch.tv "
+            "(F12 → Application → Cookies), not a token from another app.",
+        )
+
+    user_id = session["user_id"]
+    user_dir = user_manager.ensure_user_dir(user_id)
+    # The miner holds the old session in memory; stop it before touching the jar.
+    await multi_runner.stop_instance(user_id)
+
+    cookies_path = user_dir / "cookies.jar"
+    if cookies_path.exists():
+        try:
+            (user_dir / "cookies.jar.bak").write_bytes(cookies_path.read_bytes())
+        except OSError:
+            pass
+    try:
+        import aiohttp
+        from yarl import URL
+        jar = aiohttp.CookieJar()
+        values = {"auth-token": token, "persistent": str(info.get("user_id") or "")}
+        jar.update_cookies(values, URL("https://www.twitch.tv"))
+        jar.update_cookies(values, URL("https://m.twitch.tv"))
+        jar.save(cookies_path)
+    except Exception as exc:
+        raise HTTPException(500, f"Could not store the token: {exc}")
+
+    settings = _read_settings_data(user_id)
+    settings["twitch_client"] = client
+    try:
+        with open(user_dir / "settings.json", "w") as f:
+            json.dump(settings, f, indent=2)
+    except OSError:
+        pass
+
+    await multi_runner.start_instance(user_id, user_dir)
+    logger.info("User %s linked Twitch %s (%s client)", user_id, info.get("login"), client)
+    return {
+        "success": True,
+        "login": info.get("login"),
+        "client": client,
+        "scopes": len(info.get("scopes") or []),
+    }
 
 
 @app.post("/api/twitch/logout")

@@ -64,21 +64,16 @@
   <div class="card-h"><h2>Twitch Account Link</h2></div>
   <p id="link-status" class="mb-2">Loading status...</p>
   <div id="link-actions"></div>
-</div>
-
-<div class="modal" id="codeModal">
-  <div class="modal-card">
-    <div class="card-h">
-      <h2>Twitch Activation Code</h2><div class="grow"></div>
-      <button type="button" class="btn ghost sm icon-btn" data-close title="Close">✕</button>
-    </div>
-    <div class="text-center">
-      <p class="muted small mb-2">Enter this code on Twitch's activation page:</p>
-      <div id="code-display" class="mono mb-3" style="font-size:26px;letter-spacing:4px;color:var(--accent);"></div>
-      <a id="code-link" href="#" target="_blank" class="btn mb-2">Open Twitch Activation Page</a>
-      <p class="muted small mt-2">Keep this window open while you enter the code on Twitch. Status updates automatically.</p>
-      <div id="code-status" class="mt-2"></div>
-    </div>
+  <div class="mt-3">
+    <label class="muted small" for="twitch-token">Link with the <code>auth-token</code> cookie of your browser</label>
+    <textarea id="twitch-token" rows="3" spellcheck="false" autocomplete="off"
+              placeholder="Paste the auth-token value here"></textarea>
+    <p class="muted small mt-1">
+      On <code>twitch.tv</code> open DevTools (F12) → Application → Cookies →
+      <code>https://www.twitch.tv</code> → copy <code>auth-token</code>.
+      The token is validated against Twitch before it is stored, and it is never shown again.
+    </p>
+    <button class="btn" id="twitch-token-btn" onclick="saveTwitchToken()">Link account</button>
   </div>
 </div>
 {% endblock %}
@@ -137,15 +132,42 @@
       if (data.status === 'linked') {
         status.innerHTML = '<span class="badge ok">✓ Account is linked and ready for mining</span>';
         actions.innerHTML = '<button class="btn ghost" onclick="logoutTwitch()">Log out of Twitch</button>';
-      } else if (data.status === 'not_generated') {
-        status.innerHTML = '<span class="muted">No code generated yet. Generate one to link your Twitch account.</span>';
-        actions.innerHTML = '<button class="btn" onclick="generateCode()">Generate Code</button>';
-      } else if (data.status === 'pending') {
-        status.innerHTML = '<span class="badge warn">⏳ Code generated, waiting for Twitch confirmation...</span>';
-        actions.innerHTML = '<button class="btn ghost" onclick="checkLinkStatus()">Check Status</button>';
+      } else {
+        status.innerHTML = '<span class="muted">No Twitch account linked yet.</span>';
+        actions.innerHTML = '';
       }
     } catch (e) {
       document.getElementById('link-status').innerHTML = '<span class="badge err">Error checking status</span>';
+    }
+  }
+
+  async function saveTwitchToken() {
+    const input = document.getElementById('twitch-token');
+    const btn = document.getElementById('twitch-token-btn');
+    const token = (input.value || '').trim();
+    if (!token) {
+      DNXWebUI.toast('Paste the auth-token value first', 'err');
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const resp = await fetch('/api/twitch/token', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: token})
+      });
+      const data = await resp.json().catch(function () { return {}; });
+      if (resp.ok && data.success) {
+        input.value = '';
+        DNXWebUI.toast('Linked as ' + (data.login || 'Twitch') + ' · ' + (data.scopes || 0) + ' scopes', 'ok');
+        checkLinkStatus();
+      } else {
+        DNXWebUI.toast(data.detail || 'Could not link this token', 'err');
+      }
+    } catch (e) {
+      DNXWebUI.toast('Error: ' + e, 'err');
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -165,51 +187,6 @@
     } catch (e) {
       DNXWebUI.toast('Error: ' + e, 'err');
     }
-  }
-
-  async function generateCode() {
-    try {
-      const resp = await fetch('/api/generate-code');
-      const data = await resp.json();
-      if (data.success) {
-        document.getElementById('code-display').textContent = data.user_code;
-        document.getElementById('code-link').href = data.verification_uri;
-        document.getElementById('code-status').innerHTML = '<span class="muted small">Waiting for confirmation...</span>';
-        DNXWebUI.openModal('codeModal');
-        pollCodeStatus();
-      } else {
-        DNXWebUI.toast('Error: ' + (data.error || 'Failed to generate code'), 'err');
-      }
-    } catch (e) {
-      DNXWebUI.toast('Error: ' + e, 'err');
-    }
-  }
-
-  let pollInterval = null;
-  function pollCodeStatus() {
-    if (pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(async function () {
-      try {
-        const resp = await fetch('/api/code-status');
-        const data = await resp.json();
-        const statusEl = document.getElementById('code-status');
-        if (data.status === 'linked') {
-          statusEl.innerHTML = '<span class="badge ok">✓ Account linked successfully!</span>';
-          clearInterval(pollInterval);
-          setTimeout(function () {
-            DNXWebUI.closeModal('codeModal');
-            checkLinkStatus();
-          }, 2000);
-        } else if (data.status === 'pending') {
-          statusEl.innerHTML = '<span class="muted small">Still waiting... (check Twitch activation page)</span>';
-        } else if (data.status === 'failed') {
-          statusEl.innerHTML = '<span class="badge err">Error: ' + (data.error || 'Failed') + '</span>';
-          clearInterval(pollInterval);
-        }
-      } catch (e) {
-        console.error('Poll error:', e);
-      }
-    }, 3000);
   }
 
   /* ── Password ─────────────────────────────────────────────── */
