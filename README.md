@@ -1,5 +1,7 @@
 # Twitch Drops Miner — Multiuser Web Console
 
+<img width="306" height="304" alt="TwitchMinerMultiUser" src="https://github.com/user-attachments/assets/69c32379-043f-49b1-8300-376a87ab08ba" />
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg)](Dockerfile)
