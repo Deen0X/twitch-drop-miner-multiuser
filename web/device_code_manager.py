@@ -23,27 +23,15 @@ DEVICE_CLIENT_ID = "r8s4dac0uhzifbpu9sjdiwzctle17ff"
 LEGACY_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
 # Scopes requested by the device flow. Without them Twitch issues a scopeless,
 # short-lived token that GQL rejects ("Authorization token is invalid") and that
-# expires in ~4 hours. This is the same set the Android app requests, which is
-# what the miner's GQL calls expect.
+# expires in ~4 hours. Legacy scopes are rejected at the consent page now
+# (e.g. channel_feed_report), so use current read-only scopes.
 DEVICE_SCOPES = " ".join((
-    "channel_commercial",
-    "channel_editor",
-    "channel_feed_edit",
-    "channel_feed_read",
-    "channel_feed_report",
-    "channel_read",
-    "collections_edit",
-    "communities_edit",
-    "communities_moderate",
-    "user_edit",
-    "user_follows_edit",
-    "user_friends_edit",
-    "user_friends_read",
-    "user_presence_edit",
-    "user_presence_friends_read",
-    "user_subscriptions",
-    "user_subscriptions_edit",
-    "whispers_edit",
+    "user:read:email",
+    "user:read:follows",
+    "user:read:subscriptions",
+    "channel:read:subscriptions",
+    "chat:read",
+    "user:read:whispers",
 ))
 
 
