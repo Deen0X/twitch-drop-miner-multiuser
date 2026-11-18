@@ -75,12 +75,9 @@
     <div class="switch">
       <input type="checkbox" id="auto-update" onchange="saveAutoUpdate()">
       <label for="auto-update"></label>
-      <span class="switch-text">Auto-update daily</span>
+      <span class="switch-text">Auto-update daily at hour</span>
     </div>
-    <div class="field" style="flex:0 0 120px;">
-      <span>at hour</span>
-      <select id="auto-hour" onchange="saveAutoUpdate()"></select>
-    </div>
+    <select id="auto-hour" onchange="saveAutoUpdate()" style="flex:0 0 110px;"></select>
     <div class="grow"></div>
     <button class="btn ghost" onclick="checkUpdate()">Check now</button>
     <button class="btn" id="apply-update-btn" onclick="applyUpdate()" disabled>Update now</button>
@@ -93,10 +90,6 @@
       <span id="update-stage">—</span><span id="update-percent">0%</span>
     </div>
   </div>
-  <p class="muted small" style="margin-top:8px;">
-    Our repo is private: create <code>data/.github_token</code> with a GitHub token to update the web layer.
-    Without it, only the miner (upstream) is updated and the current web layer is kept.
-  </p>
 </div>
 
 <div class="card">
