@@ -1524,6 +1524,8 @@ async def api_set_update_config(request: Request):
 
 
 async def start_runner():
+    from web.multi_runner import cleanup_orphans
+    cleanup_orphans()
     asyncio.create_task(multi_runner.start_monitoring())
     from web.device_code_manager import ensure_mobile_cookie
     all_users = user_manager.list_users()

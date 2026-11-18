@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -409,11 +410,14 @@ def _verify_web(build: Path, log: list[str]) -> bool:
     port = _free_port()
     cmd = _py_cmd() + ["main.py", "--web", "--port", str(port), "--host", "127.0.0.1"]
     out_path = build / "_web_boot.log"
+    ok = False
     with open(out_path, "w") as out:
-        proc = subprocess.Popen(cmd, cwd=str(build), stdout=out, stderr=subprocess.STDOUT)
+        kwargs = {"cwd": str(build), "stdout": out, "stderr": subprocess.STDOUT}
+        if os.name == "posix":
+            kwargs["start_new_session"] = True
+        proc = subprocess.Popen(cmd, **kwargs)
         try:
             deadline = time.time() + 30
-            ok = False
             while time.time() < deadline:
                 if proc.poll() is not None:
                     break
@@ -425,15 +429,35 @@ def _verify_web(build: Path, log: list[str]) -> bool:
                 except Exception:
                     time.sleep(1)
         finally:
-            if proc.poll() is None:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=5)
-                except Exception:
-                    proc.kill()
+            _kill_verifier(proc)
     text = out_path.read_text(encoding="utf-8", errors="replace") if out_path.exists() else ""
     log.append("WEB BOOT " + ("OK" if ok else "FAILED") + "\n" + text[-4000:])
     return ok
+
+
+def _kill_verifier(proc: subprocess.Popen) -> None:
+    """Make sure the staging server and anything it spawned are gone."""
+    pgid = None
+    if os.name == "posix":
+        try:
+            pgid = os.getpgid(proc.pid)
+        except OSError:
+            pgid = None
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                proc.kill()
+                proc.wait(timeout=5)
+    except Exception:
+        logger.debug("Could not stop the verification server", exc_info=True)
+    if pgid is not None:
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except OSError:
+            pass
 
 
 def _verify(build: Path) -> tuple[bool, str, str]:

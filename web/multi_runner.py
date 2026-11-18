@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import json
+import os
 import signal
 import sys
 import shutil
@@ -16,6 +17,45 @@ from enum import Enum
 logger = logging.getLogger("TwitchDrops.MultiRunner")
 
 DATA_DIR = Path(__file__).parent.parent / "data"
+
+
+def cleanup_orphans() -> int:
+    """Kill miners/staging servers left behind by a crash or a self-restart.
+
+    The web process replaces itself with os.execv after an update, but its
+    subprocesses survive; without this, every user would get a second miner.
+    POSIX only (uses /proc); a no-op elsewhere.
+    """
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return 0
+    root = str(DATA_DIR.parent)
+    me = os.getpid()
+    killed = 0
+    for entry in proc_root.iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == me:
+            continue
+        try:
+            cmd = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+        except OSError:
+            continue
+        orphan = (
+            ("web/headless_miner.py" in cmd and root in cmd)
+            or ("main.py" in cmd and "--web" in cmd and "update_staging" in cmd)
+        )
+        if not orphan:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+            killed += 1
+        except OSError:
+            pass
+    if killed:
+        logger.info(f"Cleaned {killed} orphan process(es) from a previous run")
+    return killed
 
 
 @dataclass
@@ -260,11 +300,16 @@ class MultiRunner:
         return True
 
     async def stop_all(self):
+        # Actually terminate the subprocesses: dropping the reference leaves them
+        # running (and a self-restart would boot a second miner per user).
         async with self._lock:
-            for user_id in list(self._instances.keys()):
-                inst = self._instances[user_id]
-                inst._process = None
+            instances = list(self._instances.values())
             self._instances.clear()
+        for inst in instances:
+            try:
+                await inst.stop()
+            except Exception as exc:
+                logger.warning(f"Instance {inst.user_id} stop failed: {exc}")
 
     def get_instance_status(self, user_id: int) -> Optional[InstanceStatus]:
         inst = self._instances.get(user_id)
