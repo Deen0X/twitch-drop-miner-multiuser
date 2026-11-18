@@ -21,6 +21,30 @@ DEVICE_CLIENT_ID = "r8s4dac0uhzifbpu9sjdiwzctle17ff"
 # Old client used before Twitch disabled the device grant for it. Kept only to
 # revoke tokens that were issued back then.
 LEGACY_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
+# Scopes requested by the device flow. Without them Twitch issues a scopeless,
+# short-lived token that GQL rejects ("Authorization token is invalid") and that
+# expires in ~4 hours. This is the same set the Android app requests, which is
+# what the miner's GQL calls expect.
+DEVICE_SCOPES = " ".join((
+    "channel_commercial",
+    "channel_editor",
+    "channel_feed_edit",
+    "channel_feed_read",
+    "channel_feed_report",
+    "channel_read",
+    "collections_edit",
+    "communities_edit",
+    "communities_moderate",
+    "user_edit",
+    "user_follows_edit",
+    "user_friends_edit",
+    "user_friends_read",
+    "user_presence_edit",
+    "user_presence_friends_read",
+    "user_subscriptions",
+    "user_subscriptions_edit",
+    "whispers_edit",
+))
 
 
 def _load_codes() -> dict:
@@ -274,7 +298,7 @@ class DeviceCodeManager:
         self.clear_codes(user_id)
         client_id = DEVICE_CLIENT_ID  # MOBILE_WEB public client
         headers = {"Client-ID": client_id, "Content-Type": "application/x-www-form-urlencoded"}
-        payload = {"client_id": client_id, "scopes": ""}
+        payload = {"client_id": client_id, "scopes": DEVICE_SCOPES}
 
         async with aiohttp.ClientSession() as http:
             async with http.post("https://id.twitch.tv/oauth2/device", headers=headers, data=payload) as resp:
