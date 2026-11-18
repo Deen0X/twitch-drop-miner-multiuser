@@ -1193,7 +1193,7 @@ async def _revoke_twitch_token(cookies_path: Path) -> bool:
     try:
         import aiohttp
         from yarl import URL
-        from web.device_code_manager import ANDROID_CLIENT_ID
+        from web.device_code_manager import DEVICE_CLIENT_ID
 
         jar = aiohttp.CookieJar()
         jar.load(cookies_path)
@@ -1210,10 +1210,10 @@ async def _revoke_twitch_token(cookies_path: Path) -> bool:
             async with http.post(
                 "https://id.twitch.tv/oauth2/revoke",
                 headers={
-                    "Client-ID": ANDROID_CLIENT_ID,
+                    "Client-ID": DEVICE_CLIENT_ID,
                     "Content-Type": "application/x-www-form-urlencoded",
                 },
-                data={"client_id": ANDROID_CLIENT_ID, "token": token},
+                data={"client_id": DEVICE_CLIENT_ID, "token": token},
             ) as resp:
                 if resp.status != 200:
                     logger.warning("Twitch token revoke failed: %s", resp.status)

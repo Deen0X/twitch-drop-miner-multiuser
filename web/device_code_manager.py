@@ -14,8 +14,10 @@ import logging
 logger = logging.getLogger("TwitchDrops.DeviceCode")
 DEVICE_CODE_STORE = Path(__file__).parent.parent / "data" / "device_codes.json"
 
-# Twitch ANDROID_APP client used by the device code flow (same as upstream miner).
-ANDROID_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
+# Public client used by the device code flow.
+# NOTE: The ANDROID_APP id (kd1unb4b3q4t58fwlpcbzcbnm76a8fp) no longer allows the
+# device grant ("invalid client"); the mobile web client still does.
+DEVICE_CLIENT_ID = "r8s4dac0uhzifbpu9sjdiwzctle17ff"
 
 
 def _load_codes() -> dict:
@@ -37,7 +39,7 @@ class DeviceCodeInfo:
     user_code: str
     verification_uri: str
     expires_at: str
-    client_id: str = ANDROID_CLIENT_ID  # ANDROID_APP client_id
+    client_id: str = DEVICE_CLIENT_ID  # ANDROID_APP client_id
     interval: int = 5
     status: str = "pending"
     access_token: Optional[str] = None
@@ -207,7 +209,7 @@ class DeviceCodeManager:
         return len(keys)
 
     async def generate_code(self, user_id: int) -> DeviceCodeInfo:
-        client_id = ANDROID_CLIENT_ID  # ANDROID_APP client_id
+        client_id = DEVICE_CLIENT_ID  # ANDROID_APP client_id
         headers = {"Client-ID": client_id, "Content-Type": "application/x-www-form-urlencoded"}
         payload = {"client_id": client_id, "scopes": ""}
 
