@@ -1,181 +1,278 @@
-# Twitch Drops Miner
+# Twitch Drops Miner — Multiuser Web Console
 
-This application allows you to AFK mine timed Twitch drops, without having to worry about switching channels when the one you were watching goes offline, claiming the drops, or even receiving the stream data itself. This helps you save on bandwidth and hassle.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg)](Dockerfile)
 
-### How It Works:
+**Español:** [README.es.md](README.es.md)
 
-Every several seconds, the application pretends to watch a particular stream by fetching stream metadata - this is enough to advance the drops. Note that this completely bypasses the need to download any actual stream video and sound. To keep the status (ONLINE or OFFLINE) of the channels up-to-date, there's a websocket connection established that receives events about streams going up or down, or updates regarding the current amount of viewers.
+A fork of [TwitchDropsMiner](https://github.com/DevilXD/TwitchDropsMiner) by **DevilXD** that turns the desktop miner into a **self-hosted multiuser service**: one headless miner per user, all of them managed from a web console, with an optional Telegram bot for stats and drop notifications.
 
-### Features:
+The mining core is the original one. Everything in `web/` is what this fork adds.
 
-- Stream-less drop mining - save on bandwidth.
-- Game priority and exclusion lists, allowing you to focus on mining what you want, in the order you want, and ignore what you don't want.
-- Sharded websocket connection, allowing for tracking up to `199` channels at the same time.
-- Automatic drop campaigns discovery based on linked accounts (requires you to do [account linking](https://www.twitch.tv/drops/campaigns) yourself though).
-- Stream tags and drop campaign validation, to ensure you won't end up mining a stream that can't earn you the drop.
-- Automatic channel stream switching, when the one you were currently watching goes offline, as well as when a channel streaming a higher priority game goes online.
-- Login session is saved in a cookies file, so you don't need to login every time.
-- Mining is automatically started as new campaigns appear, and stopped when the last available drops have been mined.
+> Not affiliated with Twitch, DevilXD or the original project. Use it under your own responsibility and respect Twitch's Terms of Service.
 
-### Usage:
+---
 
-- Download and unzip [the latest release](https://github.com/DevilXD/TwitchDropsMiner/releases) - it's recommended to keep it in the folder it comes in.
-- Run it and login/connect the miner to your Twitch account by using the in-app login form.
-- After a successful login, the app should fetch a list of all available campaigns and games you can mine drops for - you can then select and add games of choice to the Priority List available on the Settings tab, and then press on the `Reload` button to start processing. It will fetch a list of all applicable streams it can watch, and start mining right away. You can also manually switch to a different channel as needed.
-- If you wish to keep the miner occupied with mining anything it can, beyond what you've selected via the Priority List, you can use the Priority Mode setting to specify the mining order for the rest of the games.
-- Make sure to link your Twitch account to game accounts on the [campaigns page](https://www.twitch.tv/drops/campaigns), to enable more games to be mined.
+## What this fork adds
 
-### Pictures:
+| Area | Original TDM | This fork |
+|---|---|---|
+| Interface | Desktop GUI (Tkinter) | **Web console** (FastAPI + Jinja2), same miner core |
+| Accounts | One Twitch account | **Unlimited local users**, each with its own miner and data directory |
+| Operation | Local app | **Headless subprocesses** managed by a runner, restartable from the browser |
+| Monitoring | GUI tabs | **Dashboard, Inventory, History, Stats** per user + admin aggregate |
+| Notifications | Tray popups | **Telegram bot** with `/stats`, drop alerts and current/upcoming toggles |
+| Updates | Manual release download | **Built-in updater**: upstream check, staging, verification, backup, auto-restart |
+| Deployment | Desktop packages | **Docker** image with `xvfb`, code mounted from disk |
+| Look & feel | Tkinter | **DNX Web UI** design system: dark/light theme, per-user accent colour, responsive drawer |
 
-![Main](https://user-images.githubusercontent.com/4180725/164298155-c0880ad7-6423-4419-8d73-f3c053730a1b.png)
-![Inventory](https://user-images.githubusercontent.com/4180725/164298315-81cae0d2-24a4-4822-a056-154fd763c284.png)
-![Settings](https://user-images.githubusercontent.com/4180725/164298391-b13ad40d-3881-436c-8d4c-34e2bbe33a78.png)
+---
 
-### Notes:
+## Screenshots
 
-> [!WARNING]  
-> Due to how Twitch handles the drop progression on their side, watching a stream in the browser (or by any other means) on the same account that is actively being used by the miner, will usually cause the miner to misbehave, reporting false progress and getting stuck mining the current drop.  
-> 
-> Using the same account to watch other streams during mining is thus discouraged, in order to avoid any problems arising from it.
+### Dashboard
+Miner state, claimed drops chart, priority/excluded games and inventory counters.
 
-> [!CAUTION]  
-> Persistent cookies will be stored in the `cookies.jar` file, from which the authorization (login) information will be restored on each subsequent run. Make sure to keep your cookies file safe, as the authorization information it stores can give another person access to your Twitch account, even without them knowing your password!
+<img src="screenshots/1-dashboard.png" width="900" alt="Dashboard">
 
-> [!IMPORTANT]  
-> Successfully logging into your Twitch account in the application may cause Twitch to send you a "New Login" notification email. This is normal - you can verify that it comes from your own IP address. The detected browser during the login will be "Chrome", as that's what the miner currently presents itself to the Twitch server.
+### Inventory
+Every campaign of the user with drop progress and filters: `Active`, `Upcoming`, `Expired`, `Not Linked`, `Excluded`, `Finished`, plus `Only my games` / `All Twitch`.
 
-> [!NOTE]  
-> The time remaining timer always countdowns a single minute and then stops - it is then restarted only after the application redetermines the remaining time. This "redetermination" can happen at any time Twitch decides to report on the drop's progress, but not later than 20 seconds after the timer reaches zero. The seconds timer is only an approximation and does not represent nor affect actual mining speed. The time variations are due to Twitch sometimes not reporting drop progress at all, or reporting progress for the wrong drop - these cases have all been accounted for in the application though.
+<img src="screenshots/2-inventory.png" width="900" alt="Inventory">
 
-> [!NOTE]  
-> The source code requires Python 3.10 or higher to run.
+### History
+Drops collected, grouped by game/campaign, with detection date and a 14-day chart.
 
-### Notes about the Windows build:
+<img src="screenshots/3-history.png" width="900" alt="History">
 
-- To achieve a portable-executable format, the application is packaged with PyInstaller into an `EXE`. Some antivirus engines (including Windows Defender) might report the packaged executable as a trojan, because PyInstaller has been used by others to package malicious Python code in the past. These reports can be safely ignored. If you absolutely do not trust the executable, you'll have to install Python yourself and run everything from source.
-- The executable uses the `%TEMP%` directory for temporary runtime storage of files, that don't need to be exposed to the user (like compiled code and translation files). For persistent storage, the directory the executable resides in is used instead.
-- The autostart feature is implemented as a registry entry to the current user's (`HKCU`) autostart key. It is only altered when toggling the respective option. If you relocate the app to a different directory, the autostart feature will stop working, until you toggle the option off and back on again
+### Stats
+Per-user KPIs, top games and inventory summary.
 
-### Notes about the Linux build:
+<img src="screenshots/4-stats.png" width="900" alt="Stats">
 
-- The Linux app is built and distributed using two distinct portable-executable formats: [AppImage](https://appimage.org/) and [PyInstaller](https://pyinstaller.org/).
-- There are no major differences between the two formats, but if you're looking for a recommendation, use the AppImage.
-- The Linux app should work out of the box on any modern distribution, as long as it has `glibc>=2.35`, plus a working display server.
-- Every feature of the app is expected to work on Linux just as well as it does on Windows. If you find something that's broken, please [open a new issue](https://github.com/DevilXD/TwitchDropsMiner/issues/new).
-- The size of the Linux app is significantly larger than the Windows app due to the inclusion of the `gtk3` library (and its dependencies), which is required for proper system tray/notifications support.
-- As an alternative to the native Linux app, you can run the Windows app via [Wine](https://www.winehq.org/) instead. It works really well!
+### Telegram
+Per-user linking (`@username` or numeric ID), notification toggles and admin bot configuration.
 
-### Notes about the macOS build:
+<img src="screenshots/5-telegram.png" width="900" alt="Telegram">
 
-- The macOS version is packaged using PyInstaller into a standalone `.app` bundle, distributed as a ZIP archive.
-- Since this application is not signed with a paid Apple Developer Certificate, **macOS Gatekeeper will block it** on the first run (saying it "The application is damaged and can't be opened").
-  - **To fix this**: Either open the Terminal in the folder the app is in (or navigating with `cd path/to/folder`) and enter `xattr -cr Twitch Drops Miner (by DevilXD).app` or just type `xattr -cr ` (make sure to put a space at the end), drag and drop the `Twitch Drops Miner (by DevilXD).app` file into the terminal window (this will auto-fill the path) and enter
-- Persistent files (like `cookies.jar`, `settings.json`, `lock.file` and the `cache` folder) are stored inside the application bundle in `Twitch Drops Miner (by DevilXD).app/Contents/MacOS` (to access them Right-click the application and select `Show Package Contents`)
+### Profile
+Display name, accent colour and password change.
 
-### Advanced Usage:
+<img src="screenshots/6-profile.png" width="900" alt="Profile">
 
-If you'd be interested in running the latest master from source or building your own executable, see the wiki page explaining how to do so: https://github.com/DevilXD/TwitchDropsMiner/wiki/Setting-up-the-environment,-building-and-running
+### User management (admin)
+Accounts, per-user state, miner control, GitHub updater and aggregated metrics.
 
-### Support
+<img src="screenshots/7-users.png" width="900" alt="User management">
 
-If you'd encounter any issues with the miner:
+### Per-user overview (admin)
+Live snapshot of any user: state, campaigns, claimed drops, progress and recent history.
 
-- Please see the [troubleshooting page](https://github.com/DevilXD/TwitchDropsMiner/wiki/Troubleshooting) for some common issues and their explanation.  
-- Please [search the issues page](https://github.com/DevilXD/TwitchDropsMiner/issues?q=sort%3Aupdated-desc%20is%3Aissue) to see if your issue hasn't been reported yet.  
-- If it's not been reported yet, feel free to open a new issue, describing your problem.
+<img src="screenshots/8-userview.png" width="900" alt="User overview">
 
-If you like the application and found it useful, please consider donating a small amount of money to support me. Thank you!
+---
 
-<div align="center">
+## Architecture
 
-[![Buy me a coffee](https://i.imgur.com/cL95gzE.png)](
-    https://www.buymeacoffee.com/DevilXD
-)
-[![Support me on Patreon](https://i.imgur.com/Mdkb9jq.png)](
-    https://www.patreon.com/bePatron?u=26937862
-)
+```text
+Browser ──HTTP──► FastAPI app (web/app.py)
+                     │
+                     ├── SQLite users.db (argon2 passwords, sessions)
+                     │
+                     └── MultiRunner (web/multi_runner.py)
+                             │  spawns one subprocess per user
+                             ▼
+                     headless_miner.py  ──►  Twitch GQL + WebSocket
+                             │
+                             ▼
+                     data/<user_id>/  (settings, cookies, progress,
+                                       inventory cache, history)
+```
 
-</div>
+- `web/app.py` — routes, session auth, admin panel, updater endpoints.
+- `web/auth.py` — user store (SQLite + argon2), user data directories.
+- `web/multi_runner.py` — starts/stops/restarts one `headless_miner.py` per user.
+- `web/headless_miner.py` — the original miner running without GUI, writing JSON state.
+- `web/telegram_bot.py` — global Telegram bot (long polling, no webhook).
+- `web/github_update.py` — upstream/web-layer updater with staging and verification.
+- `web/templates/`, `web/static/` — UI (DNX Web UI).
 
-### Project goals:
+The web layer never blocks on the miners: it reads their JSON files
+(`progress.json`, `inventory_cache.json`, `history.json`).
 
-Twitch Drops Miner (TDM for short) has been designed with a couple of simple goals in mind. These are, specifically:
+---
 
-- Twitch Drops oriented - it's in the name. That's what I made it for.
-- Easy to use for an average person. Includes a nice looking GUI and is packaged as a ready-to-go executable, without requiring an existing Python installation to work.
-- Intended as a helper tool that starts together with your PC, runs in the background through out the day, and then closes together with your PC shutting down at the end of the day. If it can run continuously for 24 hours at minimum, and not run into any errors, I'd call that good enough already.
-- Requiring a minimum amount of attention during operation - check it once or twice through out the day to see if everything's fine with it.
-- Underlying service friendly - the amount of interactions done with the Twitch site is kept to the minimum required for reliable operation, at a level achievable by a diligent site user.
+## Requirements
 
-TDM is not intended for/as:
+- Python **3.10+** (the miner core), `tk` available if you run without Docker.
+- Linux/Docker: `tk`, `libtk8.6`, `tcl`, `xvfb` (already in the `Dockerfile`).
+- A reverse proxy with TLS if you expose it outside your LAN.
 
-- Mining channel points - again, it's about the drops: only.
-- Mining anything else besides Twitch drops - no, I won't be adding support for a random 3rd party site that also happens to rely on watching Twitch streams.
-- Unattended operation: worst case scenario, it'll stop working and you'll hopefully notice that at some point. Hopefully.
-- 100% uptime application, due to the underlying nature of it, expect fatal errors to happen every so often.
-- Being hosted on a remote server as a 24/7 miner.
-- Being used with more than one managed account.
-- Mining campaigns the managed account isn't linked to.
+---
 
-This means that features such as:
+## Quick start (Docker, recommended)
 
-- It being possible to run it without a GUI, or with only a console attached.
-- Any form of automatic restart when an error happens.
-- Docker or any other form of remote deployment.
-- Using it with more than one managed account.
-- Making it possible to mine campaigns that the managed account isn't linked to.
-- Anything that increases the site processing load caused by the application.
-- Any form of additional notifications system (email, webhook, etc.), beyond what's already implemented.
+```bash
+git clone https://github.com/Deen0X/twitch-drop-miner-multiuser.git
+cd twitch-drop-miner-multiuser
+docker compose up -d --build
+```
 
-..., are most likely not going to be a feature, ever. You're welcome to search through the existing issues to comment on your point of view on the relevant matters, where applicable. Otherwise, most of the new issues that go against these goals will be closed and the user will be pointed to this paragraph.
+Open `http://<host>:4295`.
 
-For more context about these goals, please check out these issues: [#161](https://github.com/DevilXD/TwitchDropsMiner/issues/161), [#105](https://github.com/DevilXD/TwitchDropsMiner/issues/105), [#84](https://github.com/DevilXD/TwitchDropsMiner/issues/84)
+The container mounts the repository at `/app`, so code changes don't need a
+rebuild:
 
-### Credits:
+```bash
+docker restart twitch-miner-multi
+```
 
-<!---
-Note: The translations credits are sorted alphabetically, based on their English language name.
-When adding a new entry, please ensure to insert it in the correct place in the second section.
-Non-translations related credits should be added to the first section instead.
+`start.sh` runs the web server under `xvfb-run`, logs to `output.log` and keeps
+the container alive.
 
-Note: When adding a new credits line below, please add two trailing spaces at the end
-of the previous line, if they aren't already there. Doing so ensures proper markdown
-rendering on Github. In short: Each credits line should end with two trailing spaces,
-placed past the period character at the end.
+## Quick start (from source)
 
-• Last line can have the two trailing spaces omitted.
-• Please ensure your editor won't trim the trailing spaces upon saving the file.
-• Please ensure to leave a single empty new line at the end of the file.
--->
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python main.py --web --port 4295
+```
 
-@guihkx - For the CI script, CI maintenance, and everything related to Linux builds.  
-@kWAYTV - For the implementation of the dark mode theme.  
-@crocchetto - For the macOS port.  
+`main.py` keeps the original GUI mode available; `--web` starts the console
+instead.
 
-@Bamboozul - For the entirety of the Arabic (العربية) translation.  
-@Suz1e - For the entirety of the Chinese (简体中文) translation and revisions.  
-@wwj010, @zhangminghao1989, @Self4215 - For the Chinese (简体中文) translation corrections and revisions.  
-@Ricky103403 - For the entirety of the Traditional Chinese (繁體中文) translation.  
-@LusTerCsI - For the Traditional Chinese (繁體中文) translation corrections and revisions.  
-@nwvh - For the entirety of the Czech (Čeština) translation.  
-@Kjerne - For the entirety of the Danish (Dansk) translation.  
-@lmdpocus - For the entirety of the Dutch (Nederlandse) translation.  
-@Rensoraa - For the Traditional Dutch (Nederlandse) translation corrections and revisions.  
-@roobini-gamer - For the entirety of the French (Français) translation.  
-@Calvineries - For the French (Français) translation revisions.  
-@ThisIsCyreX - For the entirety of the German (Deutsch) translation.  
-@Nagyhoho1234 - For the entirety of the Hungarian (Magyar) translation.  
-@Eriza-Z - For the entirety of the Indonesian translation.  
-@casungo - For the entirety of the Italian (Italiano) translation.  
-@ShimadaNanaki - For the entirety of the Japanese (日本語) translation.  
-@biroman -  For the entirety of the Norwegian (Norsk) translation.  
-@Patriot99 - For the Polish (Polski) translation and revisions (co-authored with @DevilXD).  
-@zarigata - For the entirety of the Portuguese (Português) translation.  
-@Sergo1217 - For the entirety of the Russian (Русский) translation.  
-@kilroy98, @flamesv - For the Russian (Русский) translation corrections and revisions.  
-@Shofuu - For the entirety of the Spanish (Español) translation and revisions.  
-@Forero-0 - For the Spanish (Español) translation revisions.  
-@alikdb - For the entirety of the Turkish (Türkçe) translation.  
-@DogancanYr, @Elderly-Emre, @Hweord - For the Turkish (Türkçe) translation corrections and revisions.  
-@Nollasko - For the entirety of the Ukrainian (Українська) translation and revisions.  
-@kilroy98 - For the Ukrainian (Українська) translation corrections and revisions.  
+---
+
+## First login
+
+- On first run an admin account is created:
+  - username `admin`
+  - password read from `config/admin_pass.txt` if that file exists,
+    otherwise `admin`
+- **Change it immediately** in *Profile → Change Password*.
+- Admins create the rest of the accounts in *Users → Create User*. There is no
+  public sign-up: this is meant for a private instance.
+- Each user links **their own Twitch account** from *Profile* using the device
+  code flow (the code is shown in the console and completed on twitch.tv).
+  Cookies are stored per user in `data/<user_id>/cookies.jar`.
+
+---
+
+## Data layout
+
+```text
+data/
+├── users.db                 # accounts (argon2 hashes)
+├── .secret_key              # session signing key
+├── .telegram_token          # bot token (never returned by the API)
+├── telegram_config.json     # bot enabled/username/drop message
+├── telegram_image_cache/    # normalised 600x800 images
+└── <user_id>/
+    ├── settings.json        # priority, excluded, filters, telegram flags
+    ├── cookies.jar          # Twitch session
+    ├── progress.json        # current campaign and drop progress
+    ├── inventory_cache.json # campaigns/drops snapshot
+    └── history.json         # claimed drops detected by the web layer
+```
+
+Everything under `data/` is ignored by git. Never commit it: it contains
+session cookies, password hashes and the bot token.
+
+---
+
+## Telegram bot (optional)
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token.
+2. As admin: *Telegram → Bot configuration*, paste the token, enable the bot and
+   save. The bot starts immediately and logs `Telegram bot started as @yourbot`.
+3. Each user: *Telegram → Your Telegram*, enter the `@username` or the numeric
+   user ID, save, then press **Start** once in the chat. The first authorized
+   message links the `chat_id`.
+4. Mention the bot or send a command in a **private chat**. Unknown users and
+   group chats are ignored on purpose.
+
+| Command | Description |
+|---|---|
+| `/start`, `/help` | Link/help message |
+| `/stats` (alias `/status`) | Active campaigns of the user's inventory with drop bars |
+
+Behaviour notes:
+
+- `/stats` sends one photo per campaign (max 10) with a caption like
+  `<code>[▰▰▰▰▰▱▱▱▱▱] 050%  Drop name</code>`.
+- Campaign filtering mirrors the web inventory: active, linked (unless
+  *Not Linked* is on) and, with *Only my games*, priority minus excluded.
+  Campaigns that are complete but still active are included.
+- `Current campaigns` / `Upcoming campaigns` toggles decide what is sent.
+- While a miner is booting, `/stats` replies that the miner is starting instead
+  of pretending there are no campaigns.
+- All images are normalised to **600×800** (cover crop) so messages look uniform.
+- One token = one running instance. Don't run the same bot in two deployments
+  at once (Telegram answers `409 Conflict`).
+
+---
+
+## Built-in updater
+
+Admin panel → *Updates*:
+
+- Checks the original project's Atom feed for new miner versions.
+- Downloads to a staging directory, verifies (`py_compile` + miner API contract)
+  and boots the web layer before touching the live install.
+- Keeps a backup of the previous code, applies the update and restarts itself.
+- Optional **daily auto-update** at a chosen hour.
+- The web layer can also be updated from this fork. If you host it in a private
+  repository, provide a GitHub token in `data/.github_token`.
+
+---
+
+## Notes and limitations
+
+> [!WARNING]
+> Do not watch streams with the same Twitch account while its miner is running.
+> Progress reporting gets confused and drops can appear stuck.
+
+- Twitch may send a "New Login" email when a user links an account. That's the
+  miner's own login, not an intrusion.
+- The miner is intended for a handful of accounts on a trusted machine. It is
+  not hardened for open registration or public exposure.
+- Campaigns outside the account's linked campaigns cannot be mined (same as the
+  original project).
+- Translations, packaging and the mining internals come from upstream; GUI
+  packaging (AppImage/PyInstaller/EXE) is not part of this fork's workflow.
+
+---
+
+## Security checklist
+
+- [ ] Change the default admin password.
+- [ ] Put the console behind a reverse proxy with HTTPS.
+- [ ] Keep `data/` private: `cookies.jar`, `users.db`, `.secret_key`,
+      `.telegram_token`.
+- [ ] Restrict who can reach port `4295`.
+
+---
+
+## Credits
+
+Original project and mining core: **[DevilXD](https://github.com/DevilXD/TwitchDropsMiner)**
+and its contributors/translators (see the upstream README for the full list).
+Thanks also to the translation maintainers whose work is bundled in `lang/`.
+
+Multiuser web layer, Telegram bot, updater, DNX Web UI: **Deen0X**.
+
+---
+
+## License
+
+MIT, same as the original project.
+
+```text
+Copyright (c) 2024 DevilXD
+Copyright (c) 2026 Deen0X (multiuser web layer)
+```
+
+See [LICENSE](LICENSE) for the full text. The original copyright notice and
+permission notice are kept unchanged.
