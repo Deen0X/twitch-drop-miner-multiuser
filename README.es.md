@@ -57,7 +57,7 @@ Vinculación por usuario (`@usuario` o ID numérico), toggles de notificación y
 <img src="screenshots/5-telegram.png" width="900" alt="Telegram">
 
 ### Perfil
-Nombre visible, color de acento y cambio de contraseña.
+Nombre visible, color de acento, cambio de contraseña y logout de la cuenta de Twitch.
 
 <img src="screenshots/6-profile.png" width="900" alt="Perfil">
 
@@ -156,6 +156,11 @@ python main.py --web --port 4295
   flujo de device code (el código se muestra en la consola y se completa en
   twitch.tv). Las cookies se guardan por usuario en
   `data/<user_id>/cookies.jar`.
+- *Profile → Log out of Twitch* para el minero del usuario, revoca el token en
+  Twitch (`/oauth2/revoke`, igual que el botón *Invalidate* de upstream) y borra
+  las cookies y el estado obsoleto (progreso e inventario). El historial de drops
+  y los ajustes se conservan, y el minero se reinicia solo cuando la cuenta se
+  vincula de nuevo.
 
 ---
 

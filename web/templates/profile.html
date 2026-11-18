@@ -136,7 +136,7 @@
       const status = document.getElementById('link-status');
       if (data.status === 'linked') {
         status.innerHTML = '<span class="badge ok">✓ Account is linked and ready for mining</span>';
-        actions.innerHTML = '';
+        actions.innerHTML = '<button class="btn ghost" onclick="logoutTwitch()">Log out of Twitch</button>';
       } else if (data.status === 'not_generated') {
         status.innerHTML = '<span class="muted">No code generated yet. Generate one to link your Twitch account.</span>';
         actions.innerHTML = '<button class="btn" onclick="generateCode()">Generate Code</button>';
@@ -146,6 +146,24 @@
       }
     } catch (e) {
       document.getElementById('link-status').innerHTML = '<span class="badge err">Error checking status</span>';
+    }
+  }
+
+  async function logoutTwitch() {
+    if (!confirm('Log out of Twitch?\n\nThe miner will be stopped and its session cookies removed. You will need to link the account again to resume mining. Your drop history and settings are kept.')) {
+      return;
+    }
+    try {
+      const resp = await fetch('/api/twitch/logout', {method: 'POST'});
+      const data = await resp.json();
+      if (resp.ok && data.success) {
+        DNXWebUI.toast(data.revoked ? 'Logged out of Twitch (token revoked)' : 'Logged out of Twitch', 'ok');
+        checkLinkStatus();
+      } else {
+        DNXWebUI.toast('Could not log out: ' + (data.detail || 'unknown error'), 'err');
+      }
+    } catch (e) {
+      DNXWebUI.toast('Error: ' + e, 'err');
     }
   }
 

@@ -1188,6 +1188,75 @@ async def api_code_status(request: Request):
     return {"success": True, "status": "pending", "message": "Code entered, waiting for Twitch confirmation..."}
 
 
+async def _revoke_twitch_token(cookies_path: Path) -> bool:
+    """Best-effort token revocation, mirroring upstream's 'Invalidate' button."""
+    try:
+        import aiohttp
+        from yarl import URL
+        from web.device_code_manager import ANDROID_CLIENT_ID
+
+        jar = aiohttp.CookieJar()
+        jar.load(cookies_path)
+        cookies = jar.filter_cookies(URL("https://www.twitch.tv"))
+        morsel = cookies.get("auth-token")
+        token = getattr(morsel, "value", "") or ""
+    except Exception as exc:
+        logger.debug("Could not read Twitch token: %s", exc)
+        return False
+    if not token:
+        return False
+    try:
+        async with aiohttp.ClientSession() as http:
+            async with http.post(
+                "https://id.twitch.tv/oauth2/revoke",
+                headers={
+                    "Client-ID": ANDROID_CLIENT_ID,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={"client_id": ANDROID_CLIENT_ID, "token": token},
+            ) as resp:
+                if resp.status != 200:
+                    logger.warning("Twitch token revoke failed: %s", resp.status)
+                return resp.status == 200
+    except Exception as exc:
+        logger.warning("Twitch token revoke error: %s", exc)
+        return False
+
+
+@app.post("/api/twitch/logout")
+async def api_twitch_logout(request: Request):
+    """Log the user out of Twitch: stop the miner, revoke the token and drop cookies."""
+    session = _require_auth(request)
+    user_id = session["user_id"]
+    user_dir = user_manager.get_user_dir(user_id)
+    cookies_path = user_dir / "cookies.jar"
+
+    # Stop the miner first, otherwise it can rewrite the cookie file on shutdown.
+    await multi_runner.stop_instance(user_id)
+
+    revoked = False
+    if cookies_path.exists():
+        revoked = await _revoke_twitch_token(cookies_path)
+        try:
+            cookies_path.unlink()
+        except OSError as exc:
+            logger.warning("Could not delete cookies.jar for user %s: %s", user_id, exc)
+
+    # Account specific state, stale once the cookies are gone.
+    for name in ("progress.json", "inventory_cache.json"):
+        try:
+            (user_dir / name).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    from web.device_code_manager import DeviceCodeManager
+    DeviceCodeManager.get_instance().clear_codes(user_id)
+
+    logger.info("User %s logged out of Twitch (revoked=%s)", user_id, revoked)
+    return {"success": True, "revoked": revoked, "linked": False}
+
+
+
 @app.get("/api/admin/users")
 async def api_admin_users(request: Request):
     session = _require_auth(request)

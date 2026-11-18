@@ -14,6 +14,9 @@ import logging
 logger = logging.getLogger("TwitchDrops.DeviceCode")
 DEVICE_CODE_STORE = Path(__file__).parent.parent / "data" / "device_codes.json"
 
+# Twitch ANDROID_APP client used by the device code flow (same as upstream miner).
+ANDROID_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
+
 
 def _load_codes() -> dict:
     if DEVICE_CODE_STORE.exists():
@@ -34,7 +37,7 @@ class DeviceCodeInfo:
     user_code: str
     verification_uri: str
     expires_at: str
-    client_id: str = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"  # ANDROID_APP client_id
+    client_id: str = ANDROID_CLIENT_ID  # ANDROID_APP client_id
     interval: int = 5
     status: str = "pending"
     access_token: Optional[str] = None
@@ -171,6 +174,7 @@ class DeviceCodeManager:
                             URL("https://www.twitch.tv")
                         )
                         cookie_jar.save(cookies_file)
+                        await self._restart_miner(info.user_id, user_dir)
                     else:
                         info.error = "Client ID mismatch - invalid token"
                         info.status = "failed"
@@ -178,8 +182,32 @@ class DeviceCodeManager:
                     info.error = "Token validation failed"
                     info.status = "failed"
 
+    async def _restart_miner(self, user_id: int, user_dir: Path) -> None:
+        """The miner only reads cookies at startup, so restart it after linking."""
+        try:
+            from web.auth import UserManager
+            from web.multi_runner import MultiRunner
+            user = UserManager().get_user(user_id)
+            if user and not user.get("is_active", 1):
+                return
+            await MultiRunner.get_instance().start_instance(user_id, user_dir)
+            logger.info(f"Restarted miner for user {user_id} after linking Twitch account")
+        except Exception as exc:
+            logger.warning(f"Could not restart miner for user {user_id}: {exc}")
+
+    def clear_codes(self, user_id: int) -> int:
+        """Forget any pending/finished device code so a logged out user can relink."""
+        with self._lock:
+            keys = [key for key, info in self._codes.items() if info.user_id == user_id]
+            for key in keys:
+                del self._codes[key]
+        task = self._poll_tasks.pop(user_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+        return len(keys)
+
     async def generate_code(self, user_id: int) -> DeviceCodeInfo:
-        client_id = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"  # ANDROID_APP client_id
+        client_id = ANDROID_CLIENT_ID  # ANDROID_APP client_id
         headers = {"Client-ID": client_id, "Content-Type": "application/x-www-form-urlencoded"}
         payload = {"client_id": client_id, "scopes": ""}
 

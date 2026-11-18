@@ -57,7 +57,7 @@ Per-user linking (`@username` or numeric ID), notification toggles and admin bot
 <img src="screenshots/5-telegram.png" width="900" alt="Telegram">
 
 ### Profile
-Display name, accent colour and password change.
+Display name, accent colour, password change and Twitch account logout.
 
 <img src="screenshots/6-profile.png" width="900" alt="Profile">
 
@@ -157,6 +157,11 @@ instead.
 - Each user links **their own Twitch account** from *Profile* using the device
   code flow (the code is shown in the console and completed on twitch.tv).
   Cookies are stored per user in `data/<user_id>/cookies.jar`.
+- *Profile → Log out of Twitch* stops the user's miner, revokes the token against
+  Twitch (`/oauth2/revoke`, like upstream's *Invalidate* button) and deletes the
+  cookies plus the stale progress/inventory cache. The drop history and settings
+  are kept, and the miner restarts automatically once the account is linked
+  again.
 
 ---
 
