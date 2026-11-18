@@ -1532,6 +1532,7 @@ async def start_runner():
 
 _history_task: asyncio.Task | None = None
 _auto_update_task: asyncio.Task | None = None
+_telegram_task: asyncio.Task | None = None
 _telegram_bot = None
 
 
@@ -1568,10 +1569,32 @@ async def _start_telegram_bot() -> None:
             pass
         _telegram_bot = None
     cfg = get_config()
-    if cfg.get("enabled") and get_token():
+    if not (cfg.get("enabled") and get_token()):
+        return
+    # Telegram occasionally answers 502/timeouts: retry instead of giving up at boot.
+    for attempt in range(3):
         bot = TelegramBot(user_manager)
         if await bot.start():
             _telegram_bot = bot
+            return
+        logger.warning("Telegram bot start attempt %d/3 failed", attempt + 1)
+        await asyncio.sleep(4)
+    logger.warning("Telegram bot not running; the supervisor will retry in a few minutes")
+
+
+async def _telegram_supervisor() -> None:
+    """Restart the bot if it is enabled but not running (network hiccups, 502s...)."""
+    while True:
+        await asyncio.sleep(300)
+        try:
+            from web.telegram_bot import get_config, get_token
+            cfg = get_config()
+            if cfg.get("enabled") and get_token():
+                if _telegram_bot is None or not _telegram_bot.running:
+                    logger.info("Telegram supervisor: restarting bot")
+                    await _start_telegram_bot()
+        except Exception as exc:
+            logger.debug("Telegram supervisor error: %s", exc)
 
 
 async def _auto_update_loop() -> None:
@@ -1603,21 +1626,23 @@ async def _auto_update_loop() -> None:
 
 @app.on_event("startup")
 async def startup():
-    global _history_task, _auto_update_task
+    global _history_task, _auto_update_task, _telegram_task
     await start_runner()
     _history_task = asyncio.create_task(_history_watcher())
     _auto_update_task = asyncio.create_task(_auto_update_loop())
     await _start_telegram_bot()
+    _telegram_task = asyncio.create_task(_telegram_supervisor())
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _history_task, _auto_update_task, _telegram_bot
-    for task in (_history_task, _auto_update_task):
+    global _history_task, _auto_update_task, _telegram_task, _telegram_bot
+    for task in (_history_task, _auto_update_task, _telegram_task):
         if task is not None:
             task.cancel()
     _history_task = None
     _auto_update_task = None
+    _telegram_task = None
     if _telegram_bot is not None:
         try:
             await _telegram_bot.stop()

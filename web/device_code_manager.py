@@ -116,12 +116,18 @@ class DeviceCodeManager:
                 info.status = "failed"
                 break
             await asyncio.sleep(info.interval)
-            logger.info(f"Polling attempt {attempt} for user {user_id}")
+            # Stop if a newer code replaced this one, the user logged out, or the
+            # account was deleted (avoids polling forever with stale user ids).
+            if self.get_code_by_key(f"{user_id}_{info.device_code[:8]}") is not info:
+                break
+            if UserManager().get_user(user_id) is None:
+                break
+            if attempt % 12 == 1:
+                logger.info(f"Polling Twitch device code for user {user_id} (attempt {attempt})")
             try:
                 async with aiohttp.ClientSession() as http:
                     async with http.post("https://id.twitch.tv/oauth2/token", headers=headers, data=payload) as resp:
                         data = await resp.json()
-                        logger.info(f"Response status: {resp.status}, data: {data}")
                         if resp.status == 200:
                             info.access_token = data.get("access_token")
                             info.refresh_token = data.get("refresh_token")
@@ -130,12 +136,9 @@ class DeviceCodeManager:
                             break
                         elif resp.status == 400:
                             error = data.get("message", data.get("error", ""))
-                            logger.info(f"400 error response: {error}")
                             if error == "authorization_pending":
-                                logger.info("Authorization pending, continuing...")
                                 continue
                             elif error == "slow_down":
-                                logger.info("Slow down received, increasing interval...")
                                 info.interval = min(info.interval * 2, 30)
                                 continue
                             elif error == "expired_token":
@@ -209,7 +212,9 @@ class DeviceCodeManager:
         return len(keys)
 
     async def generate_code(self, user_id: int) -> DeviceCodeInfo:
-        client_id = DEVICE_CLIENT_ID  # ANDROID_APP client_id
+        # A new code supersedes any previous one; don't leave old pollers running.
+        self.clear_codes(user_id)
+        client_id = DEVICE_CLIENT_ID  # MOBILE_WEB public client
         headers = {"Client-ID": client_id, "Content-Type": "application/x-www-form-urlencoded"}
         payload = {"client_id": client_id, "scopes": ""}
 
@@ -230,16 +235,21 @@ class DeviceCodeManager:
                 )
                 self.store_code(user_id, info)
                 task = asyncio.create_task(self._polling_wrapper(user_id))
+                self._poll_tasks[user_id] = task
                 logger.info(f"Polling task created for user {user_id}")
                 return info
 
     async def _polling_wrapper(self, user_id: int):
-        logger.info(f"Polling wrapper started for user {user_id}")
+        task = asyncio.current_task()
         try:
             await self.start_polling(user_id)
-            logger.info(f"Polling wrapper finished for user {user_id}")
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Polling wrapper error for user {user_id}: {e}")
+        finally:
+            if self._poll_tasks.get(user_id) is task:
+                self._poll_tasks.pop(user_id, None)
 
 
 dm = DeviceCodeManager.get_instance()

@@ -285,7 +285,7 @@ class TelegramBot:
             return False
         me = await self.get_me()
         if not me:
-            logger.warning("Telegram token invalid")
+            logger.warning("Telegram getMe failed (invalid token or Telegram unreachable)")
             return False
         set_config(bot_username=me.get("username", ""))
         self._session = aiohttp.ClientSession()
@@ -329,8 +329,15 @@ class TelegramBot:
             async with aiohttp.ClientSession() as session:
                 async with session.get(API.format(token=self.token, method="getMe"),
                                        timeout=aiohttp.ClientTimeout(total=20)) as resp:
-                    data = await resp.json()
-            return data.get("result") if data.get("ok") else None
+                    data = await resp.json(content_type=None)
+                    if not data.get("ok"):
+                        logger.warning(
+                            "getMe rejected: HTTP %s %s",
+                            resp.status,
+                            data.get("description") or data,
+                        )
+                        return None
+            return data.get("result")
         except Exception as exc:
             logger.warning("getMe failed: %s", exc)
             return None
