@@ -50,6 +50,34 @@ class DeviceCodeInfo:
     error: Optional[str] = None
 
 
+def ensure_mobile_cookie(user_dir: Path) -> bool:
+    """Copy auth-token to m.twitch.tv for jars saved before the dual-host fix."""
+    path = user_dir / "cookies.jar"
+    if not path.exists():
+        return False
+    try:
+        import aiohttp
+        from yarl import URL
+
+        jar = aiohttp.CookieJar()
+        jar.load(path)
+        www = jar.filter_cookies(URL("https://www.twitch.tv"))
+        if "auth-token" not in www:
+            return False
+        if "auth-token" in jar.filter_cookies(URL("https://m.twitch.tv")):
+            return False
+        values = {"auth-token": www["auth-token"].value}
+        if "persistent" in www:
+            values["persistent"] = www["persistent"].value
+        jar.update_cookies(values, URL("https://m.twitch.tv"))
+        jar.save(path)
+        logger.info(f"Migrated Twitch cookie to m.twitch.tv in {user_dir}")
+        return True
+    except Exception as exc:
+        logger.warning(f"Could not migrate cookies for {user_dir}: {exc}")
+        return False
+
+
 class DeviceCodeManager:
     _instance: Optional["DeviceCodeManager"] = None
 
@@ -175,12 +203,16 @@ class DeviceCodeManager:
                     if data.get("client_id") == info.client_id:
                         cookies_file = user_dir / "cookies.jar"
                         cookie_jar = aiohttp.CookieJar()
-                        # ANDROID_APP uses https://www.twitch.tv as CLIENT_URL
+                        # The miner validates that the cookie's client matches its
+                        # own CLIENT_URL, and MOBILE_WEB uses m.twitch.tv: store the
+                        # token for both hosts so either client finds it.
                         from yarl import URL
-                        cookie_jar.update_cookies(
-                            {"auth-token": info.access_token, "persistent": str(info.user_id)},
-                            URL("https://www.twitch.tv")
-                        )
+                        values = {
+                            "auth-token": info.access_token,
+                            "persistent": str(info.user_id),
+                        }
+                        cookie_jar.update_cookies(values, URL("https://www.twitch.tv"))
+                        cookie_jar.update_cookies(values, URL("https://m.twitch.tv"))
                         cookie_jar.save(cookies_file)
                         self._mark_client(user_dir, "mobile_web")
                         await self._restart_miner(info.user_id, user_dir)

@@ -213,6 +213,18 @@ async def main():
 
     client = Twitch(settings)
 
+    # The web layer owns account linking (device code). There is no browser in the
+    # container, so an expired session must fail with a clear message instead of
+    # trying the upstream browser login (zendriver isn't installed here).
+    import twitch as twitch_module
+
+    async def _no_browser_login(_self):
+        raise RuntimeError(
+            "Twitch session missing or invalid. Relink the account from the web Profile page."
+        )
+
+    twitch_module._AuthState._browser_login = _no_browser_login
+
     # The web device flow links accounts with the mobile-web client, and the
     # miner refuses tokens whose client_id doesn't match its own.
     if settings.twitch_client == "mobile_web":
@@ -221,7 +233,11 @@ async def main():
     # Start inventory cache task with weak reference to client
     cache_task = asyncio.create_task(UserSettings.inventory_cache_task(lambda: client))
 
-    await client.run()
+    try:
+        await client.run()
+    except RuntimeError as exc:
+        logging.error(f"Miner cannot start: {exc}")
+        raise SystemExit(3)
 
 if __name__ == "__main__":
     asyncio.run(main())

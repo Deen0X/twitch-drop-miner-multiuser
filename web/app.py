@@ -1525,11 +1525,16 @@ async def api_set_update_config(request: Request):
 
 async def start_runner():
     asyncio.create_task(multi_runner.start_monitoring())
+    from web.device_code_manager import ensure_mobile_cookie
     all_users = user_manager.list_users()
     for user in all_users:
         user_dir = user_manager.ensure_user_dir(user["id"])
         cookies_path = user_dir / "cookies.jar"
         if cookies_path.exists():
+            settings = _read_settings_data(user["id"])
+            if settings.get("twitch_client") == "mobile_web":
+                # Old jars only had the www.twitch.tv cookie; MOBILE_WEB reads m.twitch.tv.
+                ensure_mobile_cookie(user_dir)
             await multi_runner.start_instance(user["id"], user_dir)
 
 
