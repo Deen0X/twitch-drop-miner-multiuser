@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Stats{% endblock %}
+{% block page_title %}Stats{% endblock %}
+{% block page_sub %}Your mining statistics (only your data){% endblock %}
+
+{% block content %}
+<div class="grid g3">
+  <div class="stat"><div class="k">Total claimed</div><div class="v">{{ stats.total }}</div><div class="s">drops</div></div>
+  <div class="stat"><div class="k">Last 7 days</div><div class="v">{{ stats.last7 }}</div><div class="s">claimed</div></div>
+  <div class="stat"><div class="k">Last 14 days</div><div class="v">{{ stats.last14 }}</div><div class="s">claimed</div></div>
+  <div class="stat"><div class="k">Games</div><div class="v">{{ stats.games }}</div><div class="s">with claimed drops</div></div>
+  <div class="stat"><div class="k">Active campaigns</div><div class="v">{{ stats.active_campaigns }}</div><div class="s">{{ stats.inventory.upcoming }} upcoming</div></div>
+  <div class="stat"><div class="k">Current game</div><div class="v" style="font-size:16px;">{{ stats.current_game or '—' }}</div><div class="s">{{ stats.current_campaign or 'Not mining' }}</div></div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-h">
+    <h2>Claimed drops</h2><div class="grow"></div>
+    <span class="badge info">{{ stats.chart.total }} in {{ stats.chart.days }} days</span>
+  </div>
+  <svg class="chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Claimed drops per day">
+    {% for b in stats.chart.bars %}
+    <rect class="chart-bar" x="{{ b.x }}" y="{{ 40 - (b.h * 0.36) }}" width="{{ b.w }}" height="{{ b.h * 0.36 }}" rx="0.6">
+      <title>{{ b.label }}: {{ b.count }}</title>
+    </rect>
+    {% endfor %}
+  </svg>
+  <div class="d-flex justify-content-between muted small" style="margin-top:4px;">
+    <span>{{ stats.chart.bars[0].label if stats.chart.bars else '' }}</span>
+    <span>{{ (stats.chart.bars|last).label if stats.chart.bars else '' }}</span>
+  </div>
+</div>
+
+<div class="grid g2" style="margin-top:14px;">
+  <div class="card">
+    <div class="card-h"><h2>Top games</h2></div>
+    {% if stats.top_games %}
+      {% for name, count in stats.top_games %}
+      <div class="d-flex justify-content-between" style="padding:6px 0;border-bottom:1px solid var(--line);">
+        <span>{{ name }}</span><span class="badge">{{ count }}</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="muted small">No claimed drops yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>Inventory</h2></div>
+    <div class="d-flex justify-content-between" style="padding:6px 0;border-bottom:1px solid var(--line);">
+      <span>Campaigns</span><span class="badge">{{ stats.inventory.campaigns }}</span>
+    </div>
+    <div class="d-flex justify-content-between" style="padding:6px 0;border-bottom:1px solid var(--line);">
+      <span>Active</span><span class="badge info">{{ stats.inventory.active }}</span>
+    </div>
+    <div class="d-flex justify-content-between" style="padding:6px 0;border-bottom:1px solid var(--line);">
+      <span>Upcoming</span><span class="badge">{{ stats.inventory.upcoming }}</span>
+    </div>
+    <div class="d-flex justify-content-between" style="padding:6px 0;">
+      <span>Drops claimed</span><span class="badge ok">{{ stats.inventory.claimed_drops }} / {{ stats.inventory.total_drops }}</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('dnx:refresh', function () { location.reload(); });
+</script>
+{% endblock %}

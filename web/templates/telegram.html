@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Telegram{% endblock %}
+{% block page_title %}Telegram{% endblock %}
+{% block page_sub %}Link your account and receive drop notifications{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-h">
+    <h2>Your Telegram</h2><div class="grow"></div>
+    <span class="badge {{ 'ok' if tg_user.chat_linked else 'warn' }}" id="tg-status">
+      {{ 'Linked' if tg_user.chat_linked else 'Not linked yet' }}
+    </span>
+  </div>
+
+  <p class="muted small">
+    Open {% if tg_bot_username %}<b>@{{ tg_bot_username }}</b>{% else %}the bot{% endif %}
+    in Telegram and press <b>Start</b> once. Then save your <b>@username</b> or
+    <b>numeric user ID</b> here. Unknown users get no response.
+  </p>
+
+  <div class="row">
+    <div class="field">
+      <span>@username</span>
+      <input type="text" id="tg-username" value="{{ tg_user.username }}" placeholder="your_username">
+    </div>
+    <div class="field">
+      <span>or numeric user ID</span>
+      <input type="text" id="tg-userid" value="{{ tg_user.user_id }}" placeholder="123456789">
+    </div>
+  </div>
+
+  <div class="switch" style="margin:12px 0;">
+    <input type="checkbox" id="tg-notifications" {% if tg_user.notifications %}checked{% endif %}>
+    <label for="tg-notifications"></label>
+    <span class="switch-text">Notify me about drops</span>
+  </div>
+
+  <div class="d-flex flex-wrap gap-3" style="margin-bottom:12px;">
+    <div class="switch">
+      <input type="checkbox" id="tg-notify-current" {% if tg_user.notify_current %}checked{% endif %}>
+      <label for="tg-notify-current"></label>
+      <span class="switch-text">Current campaigns</span>
+    </div>
+    <div class="switch">
+      <input type="checkbox" id="tg-notify-upcoming" {% if tg_user.notify_upcoming %}checked{% endif %}>
+      <label for="tg-notify-upcoming"></label>
+      <span class="switch-text">Upcoming campaigns</span>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" onclick="saveTgUser()">Save</button>
+    <button class="btn ghost" onclick="unlinkTg()">Unlink chat</button>
+  </div>
+  <p class="muted small">
+    If you change your identity, you must talk to the bot again (Start) to re-link
+    notifications.
+  </p>
+</div>
+
+{% if is_admin and tg_admin %}
+<div class="card">
+  <div class="card-h">
+    <h2>Bot configuration</h2><div class="grow"></div>
+    <span class="badge {{ 'ok' if tg_admin.running else 'warn' }}" id="tg-admin-status">
+      {{ 'Running' if tg_admin.running else ('Configured' if tg_admin.configured else 'Not configured') }}
+    </span>
+  </div>
+
+  <div class="row">
+    <div class="field" style="flex:2 1 280px;">
+      <span>Bot token {% if tg_admin.configured %}(configured — leave empty to keep){% endif %}</span>
+      <input type="password" id="tg-token"
+             placeholder="{{ '••••••••' if tg_admin.configured else '123456:ABC...' }}"
+             autocomplete="off">
+    </div>
+    <div class="field" style="flex:0 0 150px;">
+      <span>Bot</span>
+      <input value="{{ '@' ~ tg_admin.bot_username if tg_admin.bot_username else '—' }}" disabled>
+    </div>
+  </div>
+
+  <div class="switch" style="margin:12px 0;">
+    <input type="checkbox" id="tg-enabled" {% if tg_admin.enabled %}checked{% endif %}>
+    <label for="tg-enabled"></label>
+    <span class="switch-text">Bot enabled</span>
+  </div>
+
+  <div class="field">
+    <span>Drop message</span>
+    <input type="text" id="tg-drop-message" value="{{ tg_admin.drop_message }}">
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" onclick="saveTgAdmin()">Save config</button>
+    <button class="btn ghost" onclick="testTg()">Test send</button>
+  </div>
+  <p class="muted small">
+    Token stored in <code>data/.telegram_token</code> (never returned by the API).
+  </p>
+</div>
+
+<div class="card">
+  <div class="card-h">
+    <h2>Linked users</h2><div class="grow"></div>
+    <span class="badge info">{{ tg_admin.linked|length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>User</th><th>Telegram</th><th>Chat</th><th>Notifications</th></tr></thead>
+      <tbody>
+      {% for item in tg_admin.linked %}
+        <tr>
+          <td>{{ item.display_name }}</td>
+          <td class="mono">{{ item.telegram_username or '' }}{% if item.telegram_username and item.telegram_user_id %} · {% endif %}{{ item.telegram_user_id or '' }}</td>
+          <td>{% if item.chat_linked %}<span class="badge ok">linked</span>{% else %}<span class="badge warn">pending</span>{% endif %}</td>
+          <td>{% if item.notifications %}<span class="badge ok">on</span>{% else %}<span class="badge">off</span>{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="muted small">No users with a Telegram identity yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function tgVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+
+  async function saveTgUser() {
+    try {
+      const resp = await fetch('/api/telegram/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          username: tgVal('tg-username'),
+          user_id: tgVal('tg-userid'),
+          notifications: document.getElementById('tg-notifications').checked,
+          notify_current: document.getElementById('tg-notify-current').checked,
+          notify_upcoming: document.getElementById('tg-notify-upcoming').checked
+        })
+      });
+      const data = await resp.json();
+      if (!resp.ok) { DNXWebUI.toast(data.detail || 'Error', 'err'); return; }
+      DNXWebUI.toast('Telegram settings saved', 'ok');
+      if (data.identity_changed) {
+        const st = document.getElementById('tg-status');
+        st.textContent = 'Identity changed — talk to the bot';
+        st.className = 'badge warn';
+      }
+    } catch (e) {
+      DNXWebUI.toast('Error: ' + e, 'err');
+    }
+  }
+
+  async function unlinkTg() {
+    try {
+      await fetch('/api/telegram/unlink', {method: 'POST'});
+      const st = document.getElementById('tg-status');
+      st.textContent = 'Not linked yet';
+      st.className = 'badge warn';
+      DNXWebUI.toast('Chat unlinked', 'ok');
+    } catch (e) {
+      DNXWebUI.toast('Error: ' + e, 'err');
+    }
+  }
+
+  async function saveTgAdmin() {
+    const payload = {
+      enabled: document.getElementById('tg-enabled').checked,
+      drop_message: tgVal('tg-drop-message')
+    };
+    const token = tgVal('tg-token').trim();
+    if (token) payload.token = token;
+    try {
+      const resp = await fetch('/api/admin/telegram/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!resp.ok) { DNXWebUI.toast(data.detail || 'Error', 'err'); return; }
+      DNXWebUI.toast('Bot configuration saved', 'ok');
+      setTimeout(function () { location.reload(); }, 1200);
+    } catch (e) {
+      DNXWebUI.toast('Error: ' + e, 'err');
+    }
+  }
+
+  async function testTg() {
+    try {
+      const resp = await fetch('/api/admin/telegram/test', {method: 'POST'});
+      const data = await resp.json();
+      if (!resp.ok) { DNXWebUI.toast(data.detail || 'Error', 'err'); return; }
+      DNXWebUI.toast('Test message sent to your Telegram', 'ok');
+    } catch (e) {
+      DNXWebUI.toast('Error: ' + e, 'err');
+    }
+  }
+</script>
+{% endblock %}

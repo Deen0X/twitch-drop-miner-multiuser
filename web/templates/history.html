@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block page_title %}History{% endblock %}
+{% block page_sub %}Drops you have collected{% endblock %}
+
+{% block content %}
+<div class="grid g3">
+  <div class="stat">
+    <div class="k">Total drops</div>
+    <div class="v">{{ total }}</div>
+    <div class="s">collected and recorded</div>
+  </div>
+  <div class="stat">
+    <div class="k">Games</div>
+    <div class="v">{{ groups|length }}</div>
+    <div class="s">with claimed drops</div>
+  </div>
+  <div class="stat">
+    <div class="k">Tracking</div>
+    <div class="v" style="font-size:16px;">Automatic</div>
+    <div class="s">recorded when a drop is detected as claimed</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-h">
+    <h2>Claimed drops</h2><div class="grow"></div>
+    <span class="badge info">{{ chart.total }} in {{ chart.days }} days</span>
+  </div>
+  <svg class="chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Claimed drops per day">
+    {% for b in chart.bars %}
+    <rect class="chart-bar" x="{{ b.x }}" y="{{ 40 - (b.h * 0.36) }}" width="{{ b.w }}" height="{{ b.h * 0.36 }}" rx="0.6">
+      <title>{{ b.label }}: {{ b.count }}</title>
+    </rect>
+    {% endfor %}
+  </svg>
+  <div class="d-flex justify-content-between muted small" style="margin-top:4px;">
+    <span>{{ chart.bars[0].label if chart.bars else '' }}</span>
+    <span>{{ (chart.bars|last).label if chart.bars else '' }}</span>
+  </div>
+</div>
+
+{% if groups %}
+  {% for group in groups %}
+  <div class="campaign-card" style="margin-top:14px;">
+    <div class="d-flex gap-3">
+      {% if group.image %}
+      <img class="campaign-art clickable-img" src="{{ group.image }}" alt=""
+           onclick='DNXWebUI.openImage({{ group.image|tojson }}, {{ group.game|tojson }}, "Game cover")'
+           onerror="this.style.display='none'">
+      {% endif %}
+      <div style="flex:1;min-width:0;">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <div class="game-name">{{ group.game }}</div>
+          <span class="badge info">{{ group['items']|length }} drop{{ '' if group['items']|length == 1 else 's' }}</span>
+        </div>
+
+        {% for item in group['items'] %}
+        <div class="drop-item">
+          {% if item.image %}
+          <img class="benefit-img clickable-img" src="{{ item.image }}" alt=""
+               onclick='DNXWebUI.openImage({{ item.image|tojson }}, {{ item.drop|tojson }}, {{ (item.campaign ~ " · " ~ item.detected_at[:10])|tojson }})'
+               onerror="this.style.display='none'">
+          {% endif %}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:.85rem;">{{ item.drop }}</div>
+            <div class="campaign-time">{{ item.campaign }}</div>
+          </div>
+          <div class="campaign-time mono" style="white-space:nowrap;">
+            {{ item.detected_at[:16]|replace('T', ' ') }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="card" style="margin-top:14px;">
+    <div class="muted" style="padding:24px 8px;text-align:center;">
+      No claimed drops recorded yet. Once a drop is claimed, it will appear here automatically.
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('dnx:refresh', function () { location.reload(); });
+</script>
+{% endblock %}

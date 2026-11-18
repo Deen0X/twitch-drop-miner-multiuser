@@ -6,6 +6,7 @@ import json
 import signal
 import sys
 import shutil
+import time
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass, field
@@ -36,6 +37,7 @@ class HeadlessTwitchInstance:
         self.settings_override = settings_override or {}
         self._process: Optional[asyncio.subprocess.Process] = None
         self._shutdown_event = asyncio.Event()
+        self._started_at: Optional[float] = None
         self._status = InstanceStatus(
             user_id=user_id,
             username="",
@@ -54,6 +56,7 @@ class HeadlessTwitchInstance:
         self._shutdown_event.clear()
         self._status.running = True
         self._status.state = "starting"
+        self._started_at = time.time()
 
         # Launch as subprocess - Python executable running headless_miner.py
         # We pass user_id and user_dir as arguments
@@ -199,11 +202,12 @@ if __name__ == "__main__":
 
     def get_state_snapshot(self) -> dict:
         if self._process is None:
-            return {"user_id": self.user_id, "running": False, "state": "stopped"}
+            return {"user_id": self.user_id, "running": False, "state": "stopped", "started_at": 0}
         return {
             "user_id": self.user_id,
             "running": self._process.returncode is None,
             "state": self._status.state,
+            "started_at": self._started_at or 0,
             "campaigns_count": 0,
             "active_drop_minutes": 0,
             "current_game": "",

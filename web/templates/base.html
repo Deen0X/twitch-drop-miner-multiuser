@@ -1,0 +1,89 @@
+{% from "_icons.html" import icon %}
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>{% block title %}Twitch Drop Miner{% endblock %} - Twitch Drops Miner</title>
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/dnx-web-ui.css">
+  <style>
+    :root { --accent: {{ accent|default('#9147ff') }}; --accent-2: {{ accent_2|default('#772ce8') }}; }
+  </style>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('dnx_theme') || 'auto';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <img class="logo" src="/static/logo.png" alt="Logo">
+      <div>
+        <b>Twitch Drop Miner</b>
+        <div class="ver">Multiuser Drop</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a href="/dashboard" class="{% if active == 'dashboard' %}on{% endif %}"><span class="ico">{{ icon('dashboard') }}</span>Dashboard</a>
+      <a href="/inventory" class="{% if active == 'inventory' %}on{% endif %}"><span class="ico">{{ icon('inventory') }}</span>Inventory</a>
+      <a href="/history" class="{% if active == 'history' %}on{% endif %}"><span class="ico">{{ icon('history') }}</span>History</a>
+      <a href="/stats" class="{% if active == 'stats' %}on{% endif %}"><span class="ico">{{ icon('stats') }}</span>Stats</a>
+      <a href="/telegram" class="{% if active == 'telegram' %}on{% endif %}"><span class="ico">{{ icon('telegram') }}</span>Telegram</a>
+      <a href="/profile" class="{% if active == 'profile' %}on{% endif %}"><span class="ico">{{ icon('profile') }}</span>Profile</a>
+      {% if is_admin %}
+      <a href="/admin" class="{% if active == 'admin' %}on{% endif %}"><span class="ico">{{ icon('users') }}</span>Users</a>
+      {% endif %}
+    </nav>
+
+    <div class="foot">
+      <div class="user-card">
+        <div class="avatar">{{ (user.display_name or user.username or '?')[:1]|upper }}</div>
+        <div class="user-meta">
+          <b id="sidebar-display-name">{{ user.display_name or user.username }}</b>
+          <span>{% if is_admin %}Administrator{% else %}User{% endif %}</span>
+        </div>
+      </div>
+      <a class="user-logout" href="/logout"><span class="ico">{{ icon('logout', 16) }}</span> Logout</a>
+      <button class="theme-btn" id="theme-btn" type="button" aria-label="Change theme">
+        <span class="ico" id="theme-ico">{{ icon('monitor', 16) }}</span>
+        <span class="lbl" id="theme-lbl">Auto</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="menu-btn" id="menu-btn" type="button" aria-label="Open menu">
+        <img class="logo" src="/static/logo.png" alt="Logo"><span class="hamb">{{ icon('menu', 18) }}</span>
+      </button>
+      <div class="grow">
+        <h1 id="title">{% block page_title %}Dashboard{% endblock %}</h1>
+        <div class="sub">{% block page_sub %}Mining overview{% endblock %}</div>
+      </div>
+      <span class="badge live-badge" id="live" role="button" tabindex="0"
+            title="Refresh" aria-label="Refresh">
+        <span class="dot ok"></span><span>live</span>
+      </span>
+    </div>
+
+    <div id="view">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<div id="drawer-overlay"></div>
+<div id="toast"></div>
+
+<script src="/static/dnx-ui.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

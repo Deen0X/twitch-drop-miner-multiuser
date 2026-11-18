@@ -1,409 +1,213 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Twitch Drops Miner</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <style>
-        body { background: #0e0e11; color: #e0e0e0; }
-        .sidebar { background: #1b1b21; min-height: 100vh; border-right: 1px solid #2d2d35; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 10px 0 20px 0; text-align: center; min-height: 120px; }
-        .sidebar-logo { width: 80px; height: 80px; object-fit: contain; margin-bottom: 10px; }
-        .sidebar-title { font-size: 0.9rem; font-weight: bold; color: #9147ff; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sidebar-footer { margin-top: auto; padding: 20px 0; text-align: center; font-size: 0.75rem; color: #666; }
-        .nav-link { color: #a0a0a0; border-radius: 8px; margin: 2px 0; }
-        .nav-link:hover, .nav-link.active { background: #2d2d35; color: #e0e0e0; }
-        .card { background: #1b1b21; border: 1px solid #2d2d35; border-radius: 12px; }
-        .card-header { background: #26262e; border-bottom: 1px solid #2d2d35; color: #a0a0a0; }
-        .btn-primary { background: #9147ff; border: none; }
-        .btn-primary:hover { background: #772ce8; }
-        .btn-success { background: #00ff88; border: none; color: #000; }
-        .btn-success:hover { background: #00cc6a; }
-        .btn-danger { background: #ff4444; border: none; }
-        .btn-danger:hover { background: #cc2222; }
-        .form-control { background: #26262e; border: 1px solid #3d3d45; color: #e0e0e0; }
-        .form-control:focus { background: #26262e; border-color: #9147ff; color: #e0e0e0; box-shadow: 0 0 0 0.2rem rgba(145,71,255,0.25); }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        .status-dot.running { background: #00ff88; }
-        .status-dot.stopped { background: #ff4444; }
-        .status-dot.error { background: #ffaa00; }
-        .modal-content { background: #1b1b21; border: 1px solid #2d2d35; }
-        .modal-header { border-bottom: 1px solid #2d2d35; }
-        .modal-footer { border-top: 1px solid #2d2d35; }
-        .table td { vertical-align: middle; }
-        .table .actions-cell { white-space: nowrap; width: 1%; }
-    </style>
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-2 sidebar p-3">
-                <div class="sidebar-header">
-                    <img src="/static/logo.png" class="sidebar-logo" alt="Logo">
-                    <h5 class="sidebar-title">Twitch Drop Miner<br><small style="font-size: 0.7em; color: #772ce8;">Multiuser Drop</small></h5>
-                </div>
-                <div id="sidebar-display-name" style="font-size: 0.9rem; color: #ffffff; font-weight: bold; text-align: left; padding: 8px 0; border-bottom: 1px solid #2d2d35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ user.display_name }}</div>
-                <nav class="nav flex-column mt-2">
-                    <a class="nav-link" href="/dashboard">Dashboard</a>
-                    <a class="nav-link" href="/inventory">Inventory</a>
-                    <a class="nav-link" href="/profile">Profile</a>
-                    <a class="nav-link active" href="/admin">Users</a>
-                    <a class="nav-link" href="/logout">Logout</a>
-                </nav>
-                <div class="sidebar-footer">
-                    By: DNX.Projects
-                </div>
-            </div>
-            <div class="col-md-10 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4>User Management</h4>
-                    <div>
-                        <button class="btn btn-primary" onclick="showCreateUserModal()">Create User</button>
-                        <button class="btn btn-success ms-2" onclick="checkUpdate()">Check GitHub Update</button>
-                    </div>
-                </div>
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block page_title %}User Management{% endblock %}
+{% block page_sub %}Accounts, status and control{% endblock %}
 
-                <div class="card mb-4" id="update-card" style="display:none;">
-                    <div class="card-body">
-                        <div id="update-info"></div>
-                        <button class="btn btn-success mt-2" id="apply-update-btn" onclick="applyUpdate()">Apply Update</button>
-                    </div>
-                </div>
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div class="muted small">Create accounts and control each miner.</div>
+  <div class="d-flex gap-2">
+    <button class="btn" onclick="showCreateUserModal()">Create User</button>
+    <button class="btn btn-success" onclick="checkUpdate()">Check GitHub Update</button>
+  </div>
+</div>
 
-                <div class="card">
-                    <div class="card-header">Users</div>
-                    <div class="card-body p-0">
-                        <table class="table mb-0">
-                            <thead>
-                                <tr style="color: #a0a0a0;">
-                                    <th>ID</th>
-                                    <th>Username</th>
-                                    <th>Display Name</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Last Login</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="users-table">
-                                <tr><td colspan="7" class="text-center">Loading...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="grid g4" style="margin-bottom:14px;">
+  <div class="stat"><div class="k">Users</div><div class="v">{{ user_count }}</div><div class="s">{{ running_count }} mining now</div></div>
+  <div class="stat"><div class="k">Claimed drops</div><div class="v">{{ claimed_total }}</div><div class="s">all users</div></div>
+  <div class="stat"><div class="k">Last {{ chart.days }} days</div><div class="v">{{ chart.total }}</div><div class="s">claimed drops</div></div>
+  <div class="stat"><div class="k">Top game</div>
+    <div class="v" style="font-size:16px;">{{ top_games[0][0] if top_games else '—' }}</div>
+    <div class="s">{{ top_games[0][1] if top_games else 0 }} drops</div>
+  </div>
+</div>
+
+<div class="grid g2" style="margin-bottom:14px;">
+  <div class="card">
+    <div class="card-h"><h2>Claimed drops</h2><div class="grow"></div><span class="badge info">last {{ chart.days }} days</span></div>
+    <svg class="chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Claimed drops per day">
+      {% for b in chart.bars %}
+      <rect class="chart-bar" x="{{ b.x }}" y="{{ 40 - (b.h * 0.36) }}" width="{{ b.w }}" height="{{ b.h * 0.36 }}" rx="0.6">
+        <title>{{ b.label }}: {{ b.count }}</title>
+      </rect>
+      {% endfor %}
+    </svg>
+    <div class="d-flex justify-content-between muted small" style="margin-top:4px;">
+      <span>{{ chart.bars[0].label if chart.bars else '' }}</span>
+      <span>{{ (chart.bars|last).label if chart.bars else '' }}</span>
     </div>
+  </div>
 
-    <div class="modal fade" id="createUserModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Create User</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" id="new-username" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" id="new-password" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Display Name</label>
-                        <input type="text" id="new-display" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="createUser()">Create</button>
-                </div>
-            </div>
-        </div>
+  <div class="card">
+    <div class="card-h"><h2>Top games</h2></div>
+    {% if top_games %}
+      {% for name, count in top_games %}
+      <div class="d-flex justify-content-between" style="padding:6px 0;border-bottom:1px solid var(--line);">
+        <span>{{ name }}</span><span class="badge">{{ count }}</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="muted small">No claimed drops recorded yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" id="update-card" style="margin-bottom:14px;">
+  <div class="card-h">
+    <h2>Updates</h2><div class="grow"></div>
+    <span class="badge" id="update-badge">unknown</span>
+  </div>
+
+  <div class="grid g2">
+    <div class="stat">
+      <div class="k">Miner (upstream)</div>
+      <div class="v mono" id="up-sha" style="font-size:15px;">—</div>
+      <div class="s" id="up-info">—</div>
     </div>
-
-    <div class="modal fade" id="deleteUserModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Delete User</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to delete user <strong id="delete-username"></strong>?</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" onclick="confirmDeleteUser()">Delete</button>
-                </div>
-            </div>
-        </div>
+    <div class="stat">
+      <div class="k">Web layer (ours)</div>
+      <div class="v mono" id="our-sha" style="font-size:15px;">—</div>
+      <div class="s" id="our-info">—</div>
     </div>
+  </div>
 
-    <div class="modal fade" id="codeModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Device Activation Code</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <p id="code-user" class="text-muted mb-2"></p>
-                    <h2 id="code-display" class="mb-3" style="color: #9147ff; font-family: monospace; letter-spacing: 4px;"></h2>
-                    <p class="text-muted mb-2">Go to this link and enter the code above:</p>
-                    <a id="code-link" href="#" target="_blank" class="btn btn-primary mb-2">Open Twitch Activation Page</a>
-                    <p class="text-muted small">After linking your account, the miner will automatically detect the session.</p>
-                </div>
-            </div>
-        </div>
+  <div class="row" style="margin-top:12px;align-items:center;gap:14px;">
+    <div class="switch">
+      <input type="checkbox" id="auto-update" onchange="saveAutoUpdate()">
+      <label for="auto-update"></label>
+      <span class="switch-text">Auto-update daily</span>
     </div>
-
-    <div class="modal fade" id="changePasswordModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Change Password</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="change-password-user-id">
-                    <div class="mb-3">
-                        <label class="form-label">New Password</label>
-                        <input type="password" id="change-password-new" class="form-control" required minlength="4">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="changePassword()">Change</button>
-                </div>
-            </div>
-        </div>
+    <div class="field" style="flex:0 0 120px;">
+      <span>at hour</span>
+      <select id="auto-hour" onchange="saveAutoUpdate()"></select>
     </div>
+    <div class="grow"></div>
+    <button class="btn ghost" onclick="checkUpdate()">Check now</button>
+    <button class="btn" id="apply-update-btn" onclick="applyUpdate()" disabled>Update now</button>
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let users = [];
-        let deleteTarget = null;
-        let pendingDevBuild = true;
-        let currentStatus = {};
+  <div id="update-info" class="mt-2"></div>
+  <div id="update-progress" style="display:none;margin-top:10px;">
+    <div class="bar"><i id="update-progress-bar" style="width:0%"></i></div>
+    <div class="d-flex justify-content-between muted small" style="margin-top:4px;">
+      <span id="update-stage">—</span><span id="update-percent">0%</span>
+    </div>
+  </div>
+  <p class="muted small" style="margin-top:8px;">
+    Our repo is private: create <code>data/.github_token</code> with a GitHub token to update the web layer.
+    Without it, only the miner (upstream) is updated and the current web layer is kept.
+  </p>
+</div>
 
-        async function loadUsers() {
-            try {
-                const resp = await fetch('/api/admin/users');
-                const data = await resp.json();
-                users = data.users || [];
-                currentStatus = data.status || {};
-                renderUsers();
-            } catch (e) {
-                document.getElementById('users-table').innerHTML = '<tr><td colspan="7" class="text-danger">Failed to load users</td></tr>';
-            }
-        }
+<div class="card">
+  <div class="card-h"><h2>Users</h2><div class="grow"></div>
+    <span class="badge info">accounts</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Display Name</th>
+          <th>Status</th>
+          <th class="col-hide">Created</th>
+          <th class="col-hide">Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-table">
+        <tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
-        function renderUsers() {
-            const tbody = document.getElementById('users-table');
-            if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No users found</td></tr>';
-                return;
-            }
-            let html = '';
-            for (const u of users) {
-                const ustatus = currentStatus[u.id];
-                const running = ustatus && ustatus.running;
-                const state = running ? 'running' : 'stopped';
-                html += '<tr>';
-                html += '<td>' + u.id + '</td>';
-                html += '<td>' + u.username + (u.is_admin ? ' <span class="badge bg-primary">Admin</span>' : '') + '</td>';
-                html += '<td>' + u.display_name + '</td>';
-                html += '<td><span class="status-dot ' + state + '"></span> ' + (running ? state : 'stopped') + (u.is_active ? '' : ' (disabled)') + '</td>';
-                html += '<td>' + (u.created_at ? u.created_at.split('T')[0] : '-') + '</td>';
-                html += '<td>' + (u.last_login ? u.last_login.split('T')[0] : 'Never') + '</td>';
-                html += '<td class="actions-cell">';
-                html += '<button class="btn btn-sm btn-info me-1" onclick="generateCode(' + u.id + ')">Code</button>';
-                html += '<button class="btn btn-sm btn-secondary me-1" onclick="showChangePasswordModal(' + u.id + ')">Password</button>';
-                if (u.is_admin) {
-                    html += '<button class="btn btn-sm btn-secondary me-1" disabled>Disable</button>';
-                    html += '<button class="btn btn-sm btn-warning me-1" onclick="restartUser(' + u.id + ')">Restart</button>';
-                    html += '<button class="btn btn-sm btn-danger me-1" onclick="stopUser(' + u.id + ')">Stop</button>';
-                    html += '<button class="btn btn-sm btn-secondary me-1" disabled>Delete</button>';
-                } else {
-                    html += '<button class="btn btn-sm btn-' + (u.is_active ? 'warning' : 'success') + ' me-1" onclick="toggleUser(' + u.id + ')">' + (u.is_active ? 'Disable' : 'Enable') + '</button>';
-                    if (u.is_active) {
-                        html += '<button class="btn btn-sm btn-warning me-1" onclick="restartUser(' + u.id + ')">Restart</button>';
-                        html += '<button class="btn btn-sm btn-danger me-1" onclick="stopUser(' + u.id + ')">Stop</button>';
-                    }
-                    html += '<button class="btn btn-sm btn-danger" onclick="showDeleteUserModal(' + u.id + ')">Delete</button>';
-                }
-                html += '</td></tr>';
-            }
-            tbody.innerHTML = html;
-        }
+<!-- Create User -->
+<div class="modal" id="createUserModal">
+  <div class="modal-card">
+    <div class="card-h"><h2>Create User</h2><div class="grow"></div>
+      <button type="button" class="btn ghost sm icon-btn" data-close title="Close">✕</button>
+    </div>
+    <div class="field">
+      <label for="new-username">Username</label>
+      <input type="text" id="new-username" required>
+    </div>
+    <div class="field" style="margin-top:8px;">
+      <label for="new-password">Password</label>
+      <input type="password" id="new-password" required>
+    </div>
+    <div class="field" style="margin-top:8px;">
+      <label for="new-display">Display Name</label>
+      <input type="text" id="new-display">
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn" onclick="createUser()">Create</button>
+    </div>
+  </div>
+</div>
 
-        function showCreateUserModal() {
-            document.getElementById('new-username').value = '';
-            document.getElementById('new-password').value = '';
-            document.getElementById('new-display').value = '';
-            new bootstrap.Modal(document.getElementById('createUserModal')).show();
-        }
+<!-- Delete User -->
+<div class="modal" id="deleteUserModal">
+  <div class="modal-card">
+    <div class="card-h"><h2>Delete User</h2><div class="grow"></div>
+      <button type="button" class="btn ghost sm icon-btn" data-close title="Close">✕</button>
+    </div>
+    <p>Delete user <b id="delete-username"></b>? This cannot be undone.</p>
+    <div class="modal-foot">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn danger" onclick="confirmDeleteUser()">Delete</button>
+    </div>
+  </div>
+</div>
 
-        async function createUser() {
-            const username = document.getElementById('new-username').value.trim();
-            const password = document.getElementById('new-password').value;
-            const display = document.getElementById('new-display').value.trim() || username;
-            if (!username || !password) return;
-            try {
-                const formData = new URLSearchParams();
-                formData.append('username', username);
-                formData.append('password', password);
-                formData.append('display_name', display);
-                const resp = await fetch('/api/admin/users', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: formData
-                });
-                const data = await resp.json();
-                if (resp.ok) {
-                    bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
-                    loadUsers();
-                } else {
-                    alert('Error: ' + (data.detail || JSON.stringify(data)));
-                }
-            } catch (e) {
-                alert('Error: ' + e);
-            }
-        }
+<!-- Device Activation Code -->
+<div class="modal" id="codeModal">
+  <div class="modal-card">
+    <div class="card-h"><h2>Device Activation Code</h2><div class="grow"></div>
+      <button type="button" class="btn ghost sm icon-btn" data-close title="Close">✕</button>
+    </div>
+    <div class="text-center">
+      <p id="code-user" class="muted small mb-2"></p>
+      <div id="code-display" class="mono mb-3" style="font-size:26px;letter-spacing:4px;color:var(--accent);"></div>
+      <p class="muted small mb-2">Go to this link and enter the code above:</p>
+      <a id="code-link" href="#" target="_blank" class="btn mb-2">Open Twitch Activation Page</a>
+      <p class="muted small">After linking the account, the miner will automatically detect the session.</p>
+    </div>
+  </div>
+</div>
 
-        function showDeleteUserModal(userId) {
-            deleteTarget = userId;
-            const u = users.find(x => x.id === userId);
-            document.getElementById('delete-username').textContent = u ? u.username : userId;
-            new bootstrap.Modal(document.getElementById('deleteUserModal')).show();
-        }
+<!-- Change Password -->
+<div class="modal" id="changePasswordModal">
+  <div class="modal-card">
+    <div class="card-h"><h2>Change Password</h2><div class="grow"></div>
+      <button type="button" class="btn ghost sm icon-btn" data-close title="Close">✕</button>
+    </div>
+    <input type="hidden" id="change-password-user-id">
+    <div class="field">
+      <label for="change-password-new">New Password</label>
+      <input type="password" id="change-password-new" required minlength="4">
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn" onclick="changePassword()">Change</button>
+    </div>
+  </div>
+</div>
 
-        function showChangePasswordModal(userId) {
-            document.getElementById('change-password-user-id').value = userId;
-            document.getElementById('change-password-new').value = '';
-            new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
-        }
+<!-- User overview -->
+<div class="modal" id="userPanelModal">
+  <div class="modal-card modal-wide">
+    <div class="card-h">
+      <h2 id="up-title">User overview</h2><div class="grow"></div>
+      <button type="button" class="btn ghost sm icon-btn" data-close title="Close">✕</button>
+    </div>
+    <div id="user-panel-body"><div class="muted small">Loading...</div></div>
+  </div>
+</div>
+{% endblock %}
 
-        async function changePassword() {
-            const userId = document.getElementById('change-password-user-id').value;
-            const newPass = document.getElementById('change-password-new').value;
-            if (!newPass || newPass.length < 4) {
-                alert('Password must be at least 4 characters');
-                return;
-            }
-            try {
-                const formData = new URLSearchParams();
-                formData.append('new_password', newPass);
-                const resp = await fetch('/api/admin/users/' + userId + '/change-password', {
-                    method: 'POST',
-                    body: formData
-                });
-                if (resp.ok) {
-                    bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
-                    loadUsers();
-                } else {
-                    const data = await resp.json();
-                    alert(data.detail || 'Error changing password');
-                }
-            } catch (e) {
-                alert('Error: ' + e);
-            }
-        }
-
-        async function confirmDeleteUser() {
-            if (!deleteTarget) return;
-            try {
-                await fetch('/api/admin/users/' + deleteTarget, {method: 'DELETE'});
-                bootstrap.Modal.getInstance(document.getElementById('deleteUserModal')).hide();
-                deleteTarget = null;
-                loadUsers();
-            } catch (e) {
-                alert('Error: ' + e);
-            }
-        }
-
-        async function startUser(userId) {
-            await fetch('/api/admin/users/' + userId + '/start', {method: 'POST'});
-            setTimeout(loadUsers, 500);
-        }
-
-        async function restartUser(userId) {
-            await fetch('/api/admin/users/' + userId + '/stop', {method: 'POST'});
-            await new Promise(r => setTimeout(r, 1000));
-            await fetch('/api/admin/users/' + userId + '/start', {method: 'POST'});
-            setTimeout(loadUsers, 1000);
-        }
-
-        async function stopUser(userId) {
-            await fetch('/api/admin/users/' + userId + '/stop', {method: 'POST'});
-            setTimeout(loadUsers, 500);
-        }
-
-        async function toggleUser(userId) {
-            await fetch('/api/admin/users/' + userId + '/toggle', {method: 'POST'});
-            setTimeout(loadUsers, 500);
-        }
-
-        async function generateCode(userId) {
-            try {
-                const resp = await fetch('/api/admin/users/' + userId + '/generate-code', {method: 'POST'});
-                const data = await resp.json();
-                if (data.success) {
-                    document.getElementById('code-user').textContent = 'User ID: ' + userId;
-                    document.getElementById('code-display').textContent = data.user_code;
-                    document.getElementById('code-link').href = data.verification_uri;
-                    document.getElementById('code-link').textContent = data.verification_uri;
-                    new bootstrap.Modal(document.getElementById('codeModal')).show();
-                } else {
-                    alert('Error: ' + (data.error || 'Failed to generate code'));
-                }
-            } catch (e) {
-                alert('Error: ' + e);
-            }
-        }
-
-        async function checkUpdate(devBuild = true) {
-            pendingDevBuild = devBuild;
-            try {
-                const resp = await fetch('/api/admin/check-update?dev_build=' + devBuild);
-                const info = await resp.json();
-                document.getElementById('update-info').innerHTML = '<pre>' + JSON.stringify(info, null, 2) + '</pre>';
-                document.getElementById('update-card').style.display = 'block';
-            } catch (e) {
-                alert('Error checking update: ' + e);
-            }
-        }
-
-        async function applyUpdate() {
-            if (!confirm('This will backup current code and download new version. Continue?')) return;
-            document.getElementById('apply-update-btn').disabled = true;
-            document.getElementById('apply-update-btn').textContent = 'Applying...';
-            try {
-                const resp = await fetch('/api/admin/apply-update', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({dev_build: pendingDevBuild})
-                });
-                const result = await resp.json();
-                alert(result.message);
-                if (result.success) {
-                    alert('Update successful. Please restart the application.');
-                }
-            } catch (e) {
-                alert('Error: ' + e);
-            }
-            document.getElementById('apply-update-btn').disabled = false;
-            document.getElementById('apply-update-btn').textContent = 'Apply Update';
-        }
-
-        setInterval(loadUsers, 10000);
-        loadUsers();
-        renderUsers();
-    </script>
-</body>
-</html>
+{% block scripts %}
+<script src="/static/admin.js"></script>
+{% endblock %}

@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY requirements-web.txt .
+RUN pip install --no-cache-dir -r requirements-web.txt
+
 RUN mkdir -p /app/data
 
 COPY start.sh /start.sh

@@ -1,245 +1,196 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Twitch Drops Miner</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <style>
-        body { background: #0e0e11; color: #e0e0e0; }
-        .sidebar { background: #1b1b21; min-height: 100vh; border-right: 1px solid #2d2d35; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 10px 0 20px 0; text-align: center; min-height: 120px; }
-        .sidebar-logo { width: 80px; height: 80px; object-fit: contain; margin-bottom: 10px; }
-        .sidebar-title { font-size: 0.9rem; font-weight: bold; color: #9147ff; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sidebar-footer { margin-top: auto; padding: 20px 0; text-align: center; font-size: 0.75rem; color: #666; }
-        .nav-link { color: #a0a0a0; border-radius: 8px; margin: 2px 0; }
-        .nav-link:hover, .nav-link.active { background: #2d2d35; color: #e0e0e0; }
-        .card { background: #1b1b21; border: 1px solid #2d2d35; border-radius: 12px; }
-        .card-header { background: #26262e; border-bottom: 1px solid #2d2d35; color: #a0a0a0; }
-        .status-running { color: #00ff88; }
-        .status-stopped { color: #ff4444; }
-        .status-error { color: #ffaa00; }
-        .btn-primary { background: #9147ff; border: none; }
-        .btn-primary:hover { background: #772ce8; }
-        .form-control { background: #26262e; border: 1px solid #3d3d45; color: #e0e0e0; }
-        .form-control:focus { background: #26262e; border-color: #9147ff; color: #e0e0e0; box-shadow: 0 0 0 0.2rem rgba(145,71,255,0.25); }
-        .badge-status { font-size: 0.75rem; padding: 0.35em 0.65em; }
-        .drop-progress { font-size: 0.8rem; }
-        .game-list-item { color: #e0e0e0; background: #2d2d35; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; }
-    </style>
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-2 sidebar p-3">
-                <div class="sidebar-header">
-                    <img src="/static/logo.png" class="sidebar-logo" alt="Logo">
-                    <h5 class="sidebar-title">Twitch Drop Miner<br><small style="font-size: 0.7em; color: #772ce8;">Multiuser Drop</small></h5>
-                </div>
-                <div id="sidebar-display-name" style="font-size: 0.9rem; color: #ffffff; font-weight: bold; text-align: left; padding: 8px 0; border-bottom: 1px solid #2d2d35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ user.display_name }}</div>
-                <nav class="nav flex-column mt-2">
-                    <a class="nav-link" href="/dashboard">Dashboard</a>
-                    <a class="nav-link" href="/inventory">Inventory</a>
-                    <a class="nav-link" href="/profile">Profile</a>
-                    {% if is_admin %}
-                    <a class="nav-link" href="/admin">Users</a>
-                    {% endif %}
-                    <a class="nav-link" href="/logout">Logout</a>
-                </nav>
-                <div class="sidebar-footer">
-                    By: DNX.Projects
-                </div>
-            </div>
-            <div class="col-md-10 p-4">
-                <h4 class="mb-4">Welcome, {{ user.display_name }}</h4>
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_sub %}Welcome, {{ user.display_name }}{% endblock %}
 
-                <div class="row mb-4">
-                    <div class="col-md-4">
-                        <div class="card h-100">
-                            <div class="card-body text-center d-flex flex-column justify-content-center" style="min-height: 120px;">
-                                <h6 style="color: #a0a0a0;">Miner Status</h6>
-                                <h4 class="status-{{ 'running' if snapshot.running else 'stopped' }}">{{ 'Miner Online' if snapshot.running else 'Miner Offline' }}</h4>
-                                <button class="btn btn-sm btn-warning mt-2" onclick="restartMyMiner()" id="restartBtn">Restart</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card h-100">
-                            <div class="card-body text-center d-flex flex-column justify-content-center" style="min-height: 120px;">
-                                <h6 style="color: #a0a0a0;">Campaigns</h6>
-                                <h4 style="color: #ffffff;">{{ snapshot.campaigns_count if snapshot else 0 }}</h4>
-                                {% if snapshot.campaign_name %}
-                                <small style="color: #b0b0b0;">{{ snapshot.campaign_name }}</small>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card h-100">
-                            <div class="card-body text-center d-flex flex-column justify-content-center" style="min-height: 120px;">
-                                <h6 style="color: #a0a0a0;">Current Game</h6>
-                                <h6 style="color: #ffffff;">{{ snapshot.current_game if snapshot else 'None' }}</h6>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <span>Priority Games</span>
-                                <button class="btn btn-sm btn-primary" onclick="toggleEdit('priority')">Edit</button>
-                            </div>
-                            <div class="card-body">
-                                <ul id="priority-list" class="list-unstyled mb-0">
-                                {% for game in settings.get('priority', []) %}
-                                    <li class="mb-1 game-list-item">
-                                        <span style="color: #e0e0e0;">{{ game }}</span>
-                                    </li>
-                                {% else %}
-                                    <li class="text-muted">No priority games</li>
-                                {% endfor %}
-                                </ul>
-                                <div id="priority-edit" class="mt-2" style="display:none;">
-                                    <textarea id="priority-textarea" class="form-control mb-2" rows="5" placeholder="One game per line"></textarea>
-                                    <button class="btn btn-sm btn-primary" onclick="saveListEdit('priority')">OK</button>
-                                    <button class="btn btn-sm btn-secondary ms-1" onclick="toggleEdit('priority')">Cancel</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <span>Excluded Games</span>
-                                <button class="btn btn-sm btn-primary" onclick="toggleEdit('exclude')">Edit</button>
-                            </div>
-                            <div class="card-body">
-                                <ul id="exclude-list" class="list-unstyled mb-0">
-                                {% for game in settings.get('exclude', []) %}
-                                    <li class="mb-1 game-list-item">
-                                        <span style="color: #e0e0e0;">{{ game }}</span>
-                                    </li>
-                                {% else %}
-                                    <li class="text-muted">No excluded games</li>
-                                {% endfor %}
-                                </ul>
-                                <div id="exclude-edit" class="mt-2" style="display:none;">
-                                    <textarea id="exclude-textarea" class="form-control mb-2" rows="5" placeholder="One game per line"></textarea>
-                                    <button class="btn btn-sm btn-primary" onclick="saveListEdit('exclude')">OK</button>
-                                    <button class="btn btn-sm btn-secondary ms-1" onclick="toggleEdit('exclude')">Cancel</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">Inventory</div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label" style="color: #a0a0a0;">Filter</label>
-                            <div class="btn-group" role="group">
-                                <input type="checkbox" class="btn-check" id="filter-linked" checked>
-                                <label class="btn btn-outline-secondary btn-sm" for="filter-linked">Not Linked</label>
-                                <input type="checkbox" class="btn-check" id="filter-upcoming" checked>
-                                <label class="btn btn-outline-secondary btn-sm" for="filter-upcoming">Upcoming</label>
-                                <input type="checkbox" class="btn-check" id="filter-expired" checked>
-                                <label class="btn btn-outline-secondary btn-sm" for="filter-expired">Expired</label>
-                                <input type="checkbox" class="btn-check" id="filter-excluded" checked>
-                                <label class="btn btn-outline-secondary btn-sm" for="filter-excluded">Excluded</label>
-                                <input type="checkbox" class="btn-check" id="filter-finished" checked>
-                                <label class="btn btn-outline-secondary btn-sm" for="filter-finished">Finished</label>
-                            </div>
-                        </div>
-                        <div id="inventory-container">
-                            <p class="text-muted">Loading inventory...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block content %}
+<div class="grid g3">
+  <div class="card">
+    <div class="card-h"><h2>Miner Status</h2><div class="grow"></div>
+      <span class="dot {{ 'ok' if snapshot.running else 'err' }}"></span>
     </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <div>
+        {% if snapshot.running %}
+        <span class="badge ok">Miner Online</span>
+        {% else %}
+        <span class="badge err">Miner Offline</span>
+        {% endif %}
+      </div>
+      <button class="btn ghost sm" onclick="restartMyMiner()" id="restartBtn">Restart</button>
+    </div>
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function toggleEdit(list) {
-            const view = document.getElementById(list + '-list');
-            const edit = document.getElementById(list + '-edit');
-            if (edit.style.display === 'none') {
-                view.style.display = 'none';
-                edit.style.display = 'block';
-                const textarea = document.getElementById(list + '-textarea');
-                const listEl = document.getElementById(list + '-list');
-                const items = listEl.querySelectorAll('li span');
-                textarea.value = Array.from(items).map(item => item.textContent).filter(t => t).join('\n');
-            } else {
-                view.style.display = 'block';
-                edit.style.display = 'none';
-            }
+  <div class="stat">
+    <div class="k">Campaigns</div>
+    <div class="v">{{ snapshot.campaigns_count if snapshot else 0 }}</div>
+    <div class="s">{{ snapshot.campaign_name if snapshot and snapshot.campaign_name else 'No active campaign' }}</div>
+  </div>
+
+  <div class="stat">
+    <div class="k">Current Game</div>
+    <div class="v" style="font-size:16px;">{{ snapshot.current_game if snapshot and snapshot.current_game else 'None' }}</div>
+    <div class="s">Currently mining</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-h">
+    <h2>Claimed drops</h2><div class="grow"></div>
+    <span class="badge info">{{ chart.total }} in {{ chart.days }} days</span>
+  </div>
+  <svg class="chart" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Claimed drops per day">
+    {% for b in chart.bars %}
+    <rect class="chart-bar" x="{{ b.x }}" y="{{ 40 - (b.h * 0.36) }}" width="{{ b.w }}" height="{{ b.h * 0.36 }}" rx="0.6">
+      <title>{{ b.label }}: {{ b.count }}</title>
+    </rect>
+    {% endfor %}
+  </svg>
+  <div class="d-flex justify-content-between muted small" style="margin-top:4px;">
+    <span>{{ chart.bars[0].label if chart.bars else '' }}</span>
+    <span>{{ (chart.bars|last).label if chart.bars else '' }}</span>
+  </div>
+</div>
+
+<div class="grid g2" style="margin-top:14px;">
+  <div class="card">
+    <div class="card-h">
+      <h2>Priority Games</h2><div class="grow"></div>
+      <button class="btn ghost sm" onclick="toggleEdit('priority')">Edit</button>
+    </div>
+    <ul id="priority-list" class="list-unstyled mb-0">
+      {% for game in settings.get('priority', []) %}
+      <li class="game-list-item"><span>{{ game }}</span></li>
+      {% else %}
+      <li class="muted small">No priority games</li>
+      {% endfor %}
+    </ul>
+    <div id="priority-edit" class="mt-2" style="display:none;">
+      <textarea id="priority-textarea" rows="5" placeholder="One game per line"></textarea>
+      <div class="form-actions">
+        <button class="btn sm" onclick="saveListEdit('priority')">OK</button>
+        <button class="btn ghost sm" onclick="toggleEdit('priority')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <h2>Excluded Games</h2><div class="grow"></div>
+      <button class="btn ghost sm" onclick="toggleEdit('exclude')">Edit</button>
+    </div>
+    <ul id="exclude-list" class="list-unstyled mb-0">
+      {% for game in settings.get('exclude', []) %}
+      <li class="game-list-item"><span>{{ game }}</span></li>
+      {% else %}
+      <li class="muted small">No excluded games</li>
+      {% endfor %}
+    </ul>
+    <div id="exclude-edit" class="mt-2" style="display:none;">
+      <textarea id="exclude-textarea" rows="5" placeholder="One game per line"></textarea>
+      <div class="form-actions">
+        <button class="btn sm" onclick="saveListEdit('exclude')">OK</button>
+        <button class="btn ghost sm" onclick="toggleEdit('exclude')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-h"><h2>Inventory</h2><div class="grow"></div></div>
+  <div class="d-flex flex-wrap gap-2" style="margin-bottom:12px;">
+    <span class="muted small" style="align-self:center;">Show:</span>
+    <span class="filter-checkbox"><input type="checkbox" id="filter-linked" checked><label for="filter-linked">Not Linked</label></span>
+    <span class="filter-checkbox"><input type="checkbox" id="filter-upcoming" checked><label for="filter-upcoming">Upcoming</label></span>
+    <span class="filter-checkbox"><input type="checkbox" id="filter-expired" checked><label for="filter-expired">Expired</label></span>
+    <span class="filter-checkbox"><input type="checkbox" id="filter-excluded" checked><label for="filter-excluded">Excluded</label></span>
+    <span class="filter-checkbox"><input type="checkbox" id="filter-finished" checked><label for="filter-finished">Finished</label></span>
+  </div>
+  <div id="inventory-container">
+    <p class="muted small">Loading inventory...</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleEdit(list) {
+    var view = document.getElementById(list + '-list');
+    var edit = document.getElementById(list + '-edit');
+    if (edit.style.display === 'none') {
+      view.style.display = 'none';
+      edit.style.display = 'block';
+      var textarea = document.getElementById(list + '-textarea');
+      var items = view.querySelectorAll('li span');
+      textarea.value = Array.from(items).map(function (i) { return i.textContent; }).filter(function (t) { return t; }).join('\n');
+    } else {
+      view.style.display = 'block';
+      edit.style.display = 'none';
+    }
+  }
+
+  function saveListEdit(list) {
+    var textarea = document.getElementById(list + '-textarea');
+    var lines = textarea.value.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+    saveSettings(list, lines);
+  }
+
+  function saveSettings(list, value) {
+    var data = JSON.parse('{{ settings|tojson }}');
+    data[list] = value;
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(function () {
+      return fetch('/api/restart', { method: 'POST' });
+    }).then(function () {
+      document.getElementById('priority-edit').querySelector('button').disabled = true;
+      document.getElementById('exclude-edit').querySelector('button').disabled = true;
+      setTimeout(function () { location.reload(); }, 3000);
+    });
+  }
+
+  async function restartMyMiner() {
+    var btn = document.getElementById('restartBtn');
+    btn.disabled = true;
+    await fetch('/api/restart', { method: 'POST' });
+    setTimeout(function () { location.reload(); }, 2000);
+    setTimeout(function () { btn.disabled = false; }, 10000);
+  }
+
+  async function loadInventory() {
+    try {
+      var resp = await fetch('/api/inventory');
+      var inv = await resp.json();
+      var container = document.getElementById('inventory-container');
+      if (!inv.campaigns || inv.campaigns.length === 0) {
+        container.innerHTML = '<p class="muted small">No campaigns found</p>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < inv.campaigns.length; i++) {
+        var c = inv.campaigns[i];
+        html += '<div class="mb-3"><div class="fw-bold">' + c.game + ' <span class="muted small">(' + c.status + ')</span></div>';
+        if (c.drops && c.drops.length > 0) {
+          html += '<ul class="list-unstyled mt-1">';
+          for (var j = 0; j < c.drops.length; j++) {
+            var d = c.drops[j];
+            var pct = d.required_minutes > 0 ? Math.round(d.progress / d.required_minutes * 100) : 0;
+            html += '<li class="drop-progress">' + d.name + ': ' + pct + '%</li>';
+          }
+          html += '</ul>';
         }
+        html += '</div>';
+      }
+      container.innerHTML = html;
+    } catch (e) {
+      document.getElementById('inventory-container').innerHTML = '<p class="muted small">Unable to load inventory</p>';
+    }
+  }
 
-        function saveListEdit(list) {
-            const textarea = document.getElementById(list + '-textarea');
-            const lines = textarea.value.split('\n').map(l => l.trim()).filter(l => l);
-            saveSettings(list, lines);
-        }
-
-        function saveSettings(list, value) {
-            const data = JSON.parse('{{ settings|tojson }}');
-            data[list] = value;
-            fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            }).then(async () => {
-                await fetch('/api/restart', {method: 'POST'});
-                document.getElementById('priority-edit').querySelector('button').disabled = true;
-                document.getElementById('exclude-edit').querySelector('button').disabled = true;
-                setTimeout(() => location.reload(), 3000);
-            });
-        }
-
-        async function restartMyMiner() {
-            const btn = document.getElementById('restartBtn');
-            btn.disabled = true;
-            await fetch('/api/restart', {method: 'POST'});
-            setTimeout(() => location.reload(), 2000);
-            setTimeout(() => { btn.disabled = false; }, 10000);
-        }
-
-        async function loadInventory() {
-            try {
-                const resp = await fetch('/api/inventory');
-                const inv = await resp.json();
-                const container = document.getElementById('inventory-container');
-                if (!inv.campaigns || inv.campaigns.length === 0) {
-                    container.innerHTML = '<p class="text-muted">No campaigns found</p>';
-                    return;
-                }
-                let html = '';
-                for (const c of inv.campaigns) {
-                    html += '<div class="mb-3"><h6>' + c.game + ' <small class="text-muted">(' + c.status + ')</small></h6>';
-                    if (c.drops && c.drops.length > 0) {
-                        html += '<ul class="list-unstyled">';
-                        for (const d of c.drops) {
-                            const pct = d.required_minutes > 0 ? Math.round(d.progress / d.required_minutes * 100) : 0;
-                            html += '<li class="drop-progress">' + d.name + ': ' + pct + '%</li>';
-                        }
-                        html += '</ul>';
-                    }
-                    html += '</div>';
-                }
-                container.innerHTML = html;
-            } catch (e) {
-                document.getElementById('inventory-container').innerHTML = '<p class="text-muted">Unable to load inventory</p>';
-            }
-        }
-
-        setInterval(loadInventory, 30000);
-        loadInventory();
-    </script>
-</body>
-</html>
+  document.addEventListener('dnx:refresh', loadInventory);
+  setInterval(loadInventory, 30000);
+  loadInventory();
+</script>
+{% endblock %}

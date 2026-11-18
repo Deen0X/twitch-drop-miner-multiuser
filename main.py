@@ -141,7 +141,6 @@ if __name__ == "__main__":
                 pass
         from web.app import run
         run(port=args.port, host=args.host)
-
     # load settings
     try:
         settings = Settings(args)
