@@ -200,12 +200,19 @@ def _latest_commit_atom(repo: str, ref: str) -> dict:
 
 def _latest_commit(repo: str, ref: str, private: bool = False) -> dict:
     try:
-        if _token() or private:
+        if private:
             if not _token():
                 raise RuntimeError("private repo requires GITHUB_TOKEN or data/.github_token")
             info = _latest_commit_api(repo, ref)
         else:
-            info = _latest_commit_atom(repo, ref)
+            # Public repos work without a token; fall back to the API if the
+            # Atom feed fails and a token happens to be configured.
+            try:
+                info = _latest_commit_atom(repo, ref)
+            except Exception:
+                if not _token():
+                    raise
+                info = _latest_commit_api(repo, ref)
         info.update({"ok": True, "repo": repo, "ref": ref})
         return info
     except Exception as exc:
@@ -232,14 +239,23 @@ def _download_source(repo: str, sha: str, dest_dir: Path, private: bool = False,
                      expected: int = 0) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     zip_path = dest_dir / "source.zip"
-    if private and _token():
+    if private:
+        if not _token():
+            raise RuntimeError("private repo requires GITHUB_TOKEN or data/.github_token")
         data = _http_get(f"https://api.github.com/repos/{repo}/zipball/{sha}",
                          timeout=180, auth=True, label=label, base=base, span=span,
                          expected=expected)
     else:
-        data = _http_get(f"https://codeload.github.com/{repo}/zip/{sha}",
-                         timeout=180, label=label, base=base, span=span,
-                         expected=expected)
+        try:
+            data = _http_get(f"https://codeload.github.com/{repo}/zip/{sha}",
+                             timeout=180, label=label, base=base, span=span,
+                             expected=expected)
+        except Exception:
+            if not _token():
+                raise
+            data = _http_get(f"https://api.github.com/repos/{repo}/zipball/{sha}",
+                             timeout=180, auth=True, label=label, base=base, span=span,
+                             expected=expected)
     zip_path.write_bytes(data)
     _set_progress(stage="extract", message=f"Extracting {label or repo}...")
     with zipfile.ZipFile(zip_path) as z:
@@ -295,7 +311,7 @@ def _build_staging(upstream_sha: str, our_sha: Optional[str]) -> Path:
     if our_sha:
         _set_progress(stage="download", message="Downloading web layer (ours)...", percent=38)
         try:
-            overlay_source = _download_source(OUR_REPO, our_sha, dl / "ours", private=True,
+            overlay_source = _download_source(OUR_REPO, our_sha, dl / "ours", private=False,
                                               label="web layer (ours)", base=38, span=18,
                                               expected=1024 * 1024)
         except Exception as exc:
@@ -489,7 +505,7 @@ def _sync_tree(src: Path, dst: Path) -> list[str]:
 def check_updates_sync() -> dict:
     meta = _load_json(META_PATH, {})
     upstream = _latest_commit(UPSTREAM_REPO, UPSTREAM_REF)
-    ours = _latest_commit(OUR_REPO, OUR_REF, private=True)
+    ours = _latest_commit(OUR_REPO, OUR_REF, private=False)
     for item in (upstream, ours):
         item["applied_sha"] = meta.get("upstream_sha") if item is upstream else meta.get("our_sha")
         item["update_available"] = bool(item.get("ok")) and item.get("sha") != item.get("applied_sha")
