@@ -217,6 +217,20 @@ async def main():
 
     client = Twitch(settings)
 
+    # Surface what the miner is doing: the GUI status is invisible in headless mode.
+    state_file = user_dir / "state.json"
+    _orig_status_update = client.gui.status.update
+
+    def _status_update(text, *args, **kwargs):
+        try:
+            with open(state_file, "w") as f:
+                json.dump({"status": str(text), "updated": time.time()}, f)
+        except Exception:
+            pass
+        return _orig_status_update(text, *args, **kwargs)
+
+    client.gui.status.update = _status_update
+
     # The web layer owns account linking (device code). There is no browser in the
     # container, so an expired session must fail with a clear message instead of
     # trying the upstream browser login (zendriver isn't installed here).
