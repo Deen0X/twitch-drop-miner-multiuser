@@ -57,6 +57,8 @@ WEB_DEPS = [
 OVERLAY_FILES = [
     "Dockerfile", "start.sh", "docker-compose.yml", "requirements-web.txt",
     "_dockeriza.cmd", "_Dockerizar.cmd", "run_web.bat", "run_web_lan.bat",
+    # Project-owned files: without these the upstream tree overwrites them.
+    ".gitignore", "README.md", "README.es.md", "LICENSE",
 ]
 
 PROGRESS: dict = {
