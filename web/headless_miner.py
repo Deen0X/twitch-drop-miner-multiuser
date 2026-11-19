@@ -97,6 +97,7 @@ async def main():
         progress_file.unlink()
 
     # Progress tracking
+    global current_campaign
     current_campaign = None
 
     def on_progress_update(drop):
