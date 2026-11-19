@@ -88,13 +88,9 @@ async def main():
     from settings import Settings as SettingsBase
     from twitch import Twitch
     from dataclasses import dataclass
-
-    # Import with full path to avoid relative import issues
-    import importlib.util
-    inv_spec = importlib.util.spec_from_file_location("inventory", PROJECT_ROOT / "inventory.py")
-    inv_module = importlib.util.module_from_spec(inv_spec)
-    inv_spec.loader.exec_module(inv_module)
-    TimedDrop = inv_module.TimedDrop
+    # Must be the same class twitch.py uses, otherwise our update_minutes patch
+    # never runs and progress.json is never written.
+    from inventory import TimedDrop
 
     # Delete progress file on startup
     if progress_file.exists():
