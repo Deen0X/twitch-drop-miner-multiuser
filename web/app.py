@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import FastAPI, Request, Form, HTTPException, Response
+from fastapi import FastAPI, Request, Form, HTTPException, Response, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1243,66 +1243,93 @@ async def _validate_twitch_token(token: str) -> Optional[dict]:
         return None
 
 
-async def _gql_current_user(token: str, client_id: str) -> bool:
-    """GQL only accepts tokens from certain clients; test it before storing."""
+async def _gql_can_mine(token: str, client_id: str) -> tuple[bool, str]:
+    """Run the real campaign query: catches 401 and IntegrityCheckFailed."""
     try:
         import aiohttp
+        from constants import GQL_QUERIES
         async with aiohttp.ClientSession() as http:
             async with http.post(
                 "https://gql.twitch.tv/gql",
-                json={"query": "query { currentUser { id login } }"},
+                json=GQL_QUERIES["Campaigns"],
                 headers={"Client-ID": client_id, "Authorization": f"OAuth {token}"},
-                timeout=aiohttp.ClientTimeout(total=20),
+                timeout=aiohttp.ClientTimeout(total=25),
             ) as resp:
                 if resp.status != 200:
-                    return False
+                    return False, f"Twitch GQL returned HTTP {resp.status}"
                 data = await resp.json(content_type=None)
-                return bool(((data.get("data") or {}).get("currentUser") or {}).get("login"))
     except Exception as exc:
-        logger.debug("Twitch GQL check failed: %s", exc)
-        return False
+        return False, f"Twitch GQL error: {exc}"
+    for err in data.get("errors") or []:
+        code = ((err.get("extensions") or {}).get("code") or "")
+        if code == "IntegrityCheckFailed":
+            return False, ("This is a browser session token and Twitch requires an integrity "
+                           "check for drops. Use the cookies.jar from the desktop miner.")
+        if code in ("Unauthorized", "Forbidden"):
+            return False, "Twitch rejected this session"
+    current = ((data.get("data") or {}).get("currentUser") or {})
+    if not current.get("login"):
+        return False, "Twitch did not recognise this account"
+    return True, ""
 
 
-TWITCH_CLIENTS = {
-    "kimne78kx3ncx6brgo4mv6wki5h1ko": "web",
-    "kd1unb4b3q4t58fwlpcbzcbnm76a8fp": "android",
-    "r8s4dac0uhzifbpu9sjdiwzctle17ff": "mobile_web",
-}
+ANDROID_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
 
 
-@app.post("/api/twitch/token")
-async def api_twitch_token(request: Request):
-    """Link a Twitch account from the auth-token cookie of the user's browser."""
+@app.post("/api/twitch/cookies")
+async def api_twitch_cookies(request: Request, file: UploadFile = File(...)):
+    """Link a Twitch account from the desktop miner's cookies.jar (Android token)."""
     session = _require_auth(request)
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = {}
-    token = str(payload.get("token") or "").strip()
-    if token.lower().startswith("oauth "):
-        token = token[6:].strip()
-    if not token:
-        raise HTTPException(400, "Paste the auth-token value")
-
-    info = await _validate_twitch_token(token)
-    if not info:
-        raise HTTPException(400, "Twitch rejected this token (invalid or expired)")
-    client_id = str(info.get("client_id") or "")
-    client = TWITCH_CLIENTS.get(client_id)
-    if not client:
-        raise HTTPException(400, "This token was issued by an unsupported Twitch client")
-    if not await _gql_current_user(token, client_id):
-        raise HTTPException(
-            400,
-            "Twitch GQL rejects this token. Copy the auth-token cookie from twitch.tv "
-            "(F12 → Application → Cookies), not a token from another app.",
-        )
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "The file is empty")
+    if len(raw) > 1024 * 1024:
+        raise HTTPException(400, "That file is too large to be a cookies.jar")
 
     user_id = session["user_id"]
     user_dir = user_manager.ensure_user_dir(user_id)
+    tmp = user_dir / ".cookies_upload.jar"
+    try:
+        tmp.write_bytes(raw)
+    except OSError as exc:
+        raise HTTPException(500, f"Could not read the upload: {exc}")
+    token = ""
+    try:
+        import aiohttp
+        from yarl import URL
+        jar = aiohttp.CookieJar()
+        jar.load(tmp)
+        for host in ("https://www.twitch.tv", "https://m.twitch.tv"):
+            cookies = jar.filter_cookies(URL(host))
+            if "auth-token" in cookies:
+                token = cookies["auth-token"].value
+                break
+    except Exception:
+        token = ""
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+    if not token:
+        raise HTTPException(400, "That file has no Twitch session (auth-token cookie)")
+
+    info = await _validate_twitch_token(token)
+    if not info:
+        raise HTTPException(400, "Twitch rejected the session in that file (expired or revoked)")
+    client_id = str(info.get("client_id") or "")
+    if client_id != ANDROID_CLIENT_ID:
+        raise HTTPException(
+            400,
+            "That session is not from the desktop miner. Run the desktop miner, log in "
+            "with the browser and upload the cookies.jar it creates.",
+        )
+    ok, reason = await _gql_can_mine(token, client_id)
+    if not ok:
+        raise HTTPException(400, reason)
+
     # The miner holds the old session in memory; stop it before touching the jar.
     await multi_runner.stop_instance(user_id)
-
     cookies_path = user_dir / "cookies.jar"
     if cookies_path.exists():
         try:
@@ -1310,18 +1337,12 @@ async def api_twitch_token(request: Request):
         except OSError:
             pass
     try:
-        import aiohttp
-        from yarl import URL
-        jar = aiohttp.CookieJar()
-        values = {"auth-token": token, "persistent": str(info.get("user_id") or "")}
-        jar.update_cookies(values, URL("https://www.twitch.tv"))
-        jar.update_cookies(values, URL("https://m.twitch.tv"))
-        jar.save(cookies_path)
-    except Exception as exc:
-        raise HTTPException(500, f"Could not store the token: {exc}")
+        cookies_path.write_bytes(raw)
+    except OSError as exc:
+        raise HTTPException(500, f"Could not store the session: {exc}")
 
     settings = _read_settings_data(user_id)
-    settings["twitch_client"] = client
+    settings["twitch_client"] = "android"
     try:
         with open(user_dir / "settings.json", "w") as f:
             json.dump(settings, f, indent=2)
@@ -1329,13 +1350,9 @@ async def api_twitch_token(request: Request):
         pass
 
     await multi_runner.start_instance(user_id, user_dir)
-    logger.info("User %s linked Twitch %s (%s client)", user_id, info.get("login"), client)
-    return {
-        "success": True,
-        "login": info.get("login"),
-        "client": client,
-        "scopes": len(info.get("scopes") or []),
-    }
+    logger.info("User %s linked Twitch %s from an uploaded cookies.jar", user_id, info.get("login"))
+    return {"success": True, "login": info.get("login"), "scopes": len(info.get("scopes") or [])}
+
 
 
 @app.post("/api/twitch/logout")

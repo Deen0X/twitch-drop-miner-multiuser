@@ -65,15 +65,15 @@
   <p id="link-status" class="mb-2">Loading status...</p>
   <div id="link-actions"></div>
   <div class="mt-3">
-    <label class="muted small" for="twitch-token">Link with the <code>auth-token</code> cookie of your browser</label>
-    <textarea id="twitch-token" rows="3" spellcheck="false" autocomplete="off"
-              placeholder="Paste the auth-token value here"></textarea>
+    <label class="muted small" for="cookies-file">Link with the <code>cookies.jar</code> of the desktop miner</label>
+    <input type="file" id="cookies-file" accept=".jar,application/octet-stream">
     <p class="muted small mt-1">
-      On <code>twitch.tv</code> open DevTools (F12) → Application → Cookies →
-      <code>https://www.twitch.tv</code> → copy <code>auth-token</code>.
-      The token is validated against Twitch before it is stored, and it is never shown again.
+      Twitch only accepts the session created by the desktop miner (the browser cookie is
+      rejected by its integrity check). Run the desktop miner on your PC once, log in with
+      the browser, close it and upload the <code>cookies.jar</code> from its folder.
+      The session is validated before it replaces the current one.
     </p>
-    <button class="btn" id="twitch-token-btn" onclick="saveTwitchToken()">Link account</button>
+    <button class="btn" id="cookies-btn" onclick="uploadCookies()">Upload and link</button>
   </div>
 </div>
 {% endblock %}
@@ -141,28 +141,25 @@
     }
   }
 
-  async function saveTwitchToken() {
-    const input = document.getElementById('twitch-token');
-    const btn = document.getElementById('twitch-token-btn');
-    const token = (input.value || '').trim();
-    if (!token) {
-      DNXWebUI.toast('Paste the auth-token value first', 'err');
+  async function uploadCookies() {
+    const input = document.getElementById('cookies-file');
+    const btn = document.getElementById('cookies-btn');
+    if (!input.files || !input.files.length) {
+      DNXWebUI.toast('Choose the cookies.jar file first', 'err');
       return;
     }
+    const form = new FormData();
+    form.append('file', input.files[0]);
     btn.disabled = true;
     try {
-      const resp = await fetch('/api/twitch/token', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({token: token})
-      });
+      const resp = await fetch('/api/twitch/cookies', { method: 'POST', body: form });
       const data = await resp.json().catch(function () { return {}; });
       if (resp.ok && data.success) {
         input.value = '';
-        DNXWebUI.toast('Linked as ' + (data.login || 'Twitch') + ' · ' + (data.scopes || 0) + ' scopes', 'ok');
+        DNXWebUI.toast('Linked as ' + (data.login || 'Twitch'), 'ok');
         checkLinkStatus();
       } else {
-        DNXWebUI.toast(data.detail || 'Could not link this token', 'err');
+        DNXWebUI.toast(data.detail || 'Could not link that session', 'err');
       }
     } catch (e) {
       DNXWebUI.toast('Error: ' + e, 'err');
