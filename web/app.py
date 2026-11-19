@@ -345,6 +345,20 @@ async def _start_user_instance(user_id: int):
     await multi_runner.start_instance(user_id, user_dir)
 
 
+async def _reload_miner_settings(user_id: int) -> bool:
+    """Mining settings are read at startup: restart the miner to apply them."""
+    user_dir = user_manager.ensure_user_dir(user_id)
+    if not (user_dir / "cookies.jar").exists():
+        return False
+    snapshot = multi_runner.get_instance_snapshot(user_id)
+    if not snapshot.get("running"):
+        return False
+    await multi_runner.stop_instance(user_id)
+    await multi_runner.start_instance(user_id, user_dir)
+    logger.info("Restarted miner for user %s after a settings change", user_id)
+    return True
+
+
 @app.get("/")
 async def root(request: Request):
     session = _get_session(request)
@@ -859,12 +873,17 @@ async def api_settings(request: Request):
         current["inventory_filters"] = settings["inventory_filters"]
     if "inventory_only_mine" in settings:
         current["inventory_only_mine"] = bool(settings["inventory_only_mine"])
+    if "priority_mode" in settings:
+        current["priority_mode"] = settings["priority_mode"]
     with open(settings_path, "w") as f:
         json.dump(current, f, indent=2)
 
     cache_file = user_dir / "inventory_cache.json"
     if cache_file.exists():
         cache_file.unlink()
+
+    if any(k in settings for k in ("priority", "exclude", "priority_mode")):
+        await _reload_miner_settings(session["user_id"])
 
     return {"success": True}
 
@@ -964,6 +983,8 @@ async def api_priority_add(request: Request):
         if cache_file.exists():
             cache_file.unlink()
 
+        await _reload_miner_settings(session["user_id"])
+
     return {"success": True, "priority": priority}
 
 
@@ -1005,6 +1026,8 @@ async def api_exclude_add(request: Request):
         if cache_file.exists():
             cache_file.unlink()
 
+        await _reload_miner_settings(session["user_id"])
+
     return {"success": True, "exclude": exclude}
 
 
@@ -1032,10 +1055,18 @@ async def api_priority_remove(request: Request):
             pass
 
     priority = settings_data.get("priority", [])
-    priority = [p for p in priority if p.get("id") != game_id]
+    if not isinstance(priority, list):
+        priority = []
+    priority = [
+        p for p in priority
+        if (p.get("id") if isinstance(p, dict) else p) != game_id
+        and (p.get("name") if isinstance(p, dict) else p) != game_id
+    ]
     settings_data["priority"] = priority
     with open(settings_path, 'w') as f:
         json.dump(settings_data, f, indent=2)
+
+    await _reload_miner_settings(session["user_id"])
 
     return {"success": True, "priority": priority}
 
