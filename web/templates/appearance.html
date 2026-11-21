@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Appearance{% endblock %}
+{% block page_title %}Apariencia{% endblock %}
+{% block page_sub %}Fondo de la aplicación y marca de la instalación{% endblock %}
+
+{% block content %}
+<div id="appearance-card"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var meta = null;
+  async function initAppearance() {
+    if (typeof DnxBg === 'undefined') return;
+    try {
+      var r = await fetch('/api/v1/branding', { cache: 'no-store' });
+      if (r.ok) meta = await r.json();
+    } catch(e) {}
+    var card = document.getElementById('appearance-card');
+    if (!card) return;
+    card.innerHTML = DnxBg.card(meta);
+    DnxBg.bind(card, meta);
+    DnxBg.apply(meta && meta.background ? meta.background : { mode: 'none' });
+  }
+  document.addEventListener('DOMContentLoaded', initAppearance);
+  document.addEventListener('dnx:refresh', initAppearance);
+})();
+</script>
+{% endblock %}

@@ -530,6 +530,22 @@ async def history_page(request: Request):
     return Response(tmpl.render(ctx), media_type="text/html")
 
 
+@app.get("/appearance")
+async def appearance_page(request: Request):
+    session = _require_auth(request)
+    if not session.get("is_admin"):
+        raise HTTPException(403, "Admin access required")
+    tmpl = templates.env.get_template("appearance.html")
+    ctx = {
+        "request": request,
+        "user": user_manager.get_user(session["user_id"]),
+        "is_admin": True,
+        "active": "appearance",
+        **_accent_ctx(session["user_id"]),
+    }
+    return Response(tmpl.render(ctx), media_type="text/html")
+
+
 @app.get("/stats")
 async def stats_page(request: Request):
     session = _require_auth(request)
