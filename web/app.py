@@ -1810,6 +1810,26 @@ async def api_branding_delete(request: Request):
     return {"success": True}
 
 
+@app.patch("/api/v1/admin/branding/background")
+async def api_branding_update(request: Request):
+    session = _require_auth(request)
+    if not session["is_admin"]:
+        raise HTTPException(403, "Admin access required")
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    meta = _load_brand_meta()
+    if meta.get("mode") == "none" or not meta.get("sha"):
+        raise HTTPException(404, "No background configured")
+    if "intensity" in data or "bg_intensity" in data:
+        meta["intensity"] = int(data.get("intensity", data.get("bg_intensity", meta.get("intensity", 6))))
+    if "tint" in data or "bg_tint" in data:
+        meta["tint"] = str(data.get("tint", data.get("bg_tint", meta.get("tint", "auto"))))
+    _save_brand_meta(meta)
+    return {"success": True, "background": meta}
+
+
 @app.get("/api/v1/branding")
 async def api_branding_info():
     """Public branding info (instance_name + background). Used by login & all pages."""

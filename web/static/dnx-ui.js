@@ -163,6 +163,8 @@
   /* ── API helper para scripts de página ────────────────────────── */
 
   var S = { token: '' };
+  try { S.token = localStorage.getItem('dnxt_admin') || ''; } catch(e) {}
+  window.S = S;
   function api(url, opts) {
     opts = opts || {};
     opts.headers = opts.headers || {};
@@ -180,6 +182,7 @@
       });
     });
   }
+  window.api = api;
 
   /* ── API pública ────────────────────────────────────────────── */
   window.DNXWebUI = {

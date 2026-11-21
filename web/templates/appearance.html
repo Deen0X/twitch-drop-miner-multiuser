@@ -23,7 +23,11 @@
     DnxBg.bind(card, meta);
     DnxBg.apply(meta && meta.background ? meta.background : { mode: 'none' });
   }
-  document.addEventListener('DOMContentLoaded', initAppearance);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAppearance);
+  } else {
+    initAppearance();
+  }
   document.addEventListener('dnx:refresh', initAppearance);
 })();
 </script>

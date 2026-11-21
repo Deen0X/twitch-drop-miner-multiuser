@@ -59,6 +59,7 @@
       <a href="/telegram" class="{% if active == 'telegram' %}on{% endif %}"><span class="ico">{{ icon('telegram') }}</span>Telegram</a>
       <a href="/profile" class="{% if active == 'profile' %}on{% endif %}"><span class="ico">{{ icon('profile') }}</span>Profile</a>
       {% if is_admin %}
+      <a href="/admin" class="{% if active == 'admin' %}on{% endif %}"><span class="ico">{{ icon('users') }}</span>Users</a>
       <a href="/appearance" class="{% if active == 'appearance' %}on{% endif %}"><span class="ico">{{ icon('palette') }}</span>Apariencia</a>
       {% endif %}
     </nav>

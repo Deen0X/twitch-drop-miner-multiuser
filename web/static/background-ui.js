@@ -597,8 +597,9 @@
           msg('Fondo guardado', 'ok');
         } else if (ctx.meta.mode && ctx.meta.mode !== 'none') {
           msg('Guardando ajustes…');
-          await api('/admin/settings', {
+          await api('/api/v1/admin/branding/background', {
             method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bg_intensity: intensity, bg_tint: tint }),
           });
           ctx.meta.intensity = intensity;
@@ -619,7 +620,7 @@
     q('bg-clear').addEventListener('click', async function () {
       if (!confirm('¿Quitar el fondo de la aplicación?')) return;
       try {
-        await api('/admin/branding/background', { method: 'DELETE' });
+        await api('/api/v1/admin/branding/background', { method: 'DELETE' });
         ctx.meta = { mode: 'none' };
         ctx.prepared = null;
         setPreview('', 'none', true);
