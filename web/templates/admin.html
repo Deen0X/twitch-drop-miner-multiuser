@@ -4,6 +4,9 @@
 {% block page_sub %}Accounts, status and control{% endblock %}
 
 {% block content %}
+<!-- Apariencia -->
+<div id="appearance-card"></div>
+
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <div class="muted small">Create accounts and control each miner.</div>
   <div class="d-flex gap-2">
@@ -203,4 +206,23 @@
 
 {% block scripts %}
 <script src="/static/admin.js"></script>
+<script>
+(function() {
+  var meta = null;
+  async function initAppearance() {
+    if (typeof DnxBg === 'undefined') return;
+    try {
+      var r = await fetch('/api/v1/branding', { cache: 'no-store' });
+      if (r.ok) meta = await r.json();
+    } catch(e) {}
+    var card = document.getElementById('appearance-card');
+    if (!card) return;
+    card.innerHTML = DnxBg.card(meta);
+    DnxBg.bind(card, meta);
+    DnxBg.apply(meta && meta.background ? meta.background : { mode: 'none' });
+  }
+  document.addEventListener('DOMContentLoaded', initAppearance);
+  document.addEventListener('dnx:refresh', initAppearance);
+})();
+</script>
 {% endblock %}

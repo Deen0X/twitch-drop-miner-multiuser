@@ -160,6 +160,27 @@
     _resetVz();
   }
 
+  /* ── API helper para scripts de página ────────────────────────── */
+
+  var S = { token: '' };
+  function api(url, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    if (S.token) opts.headers['Authorization'] = 'Bearer ' + S.token;
+    return fetch(url, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (r.status === 401) {
+          S.token = '';
+          localStorage.removeItem('dnxt_admin');
+          if (typeof showLogin === 'function') showLogin();
+          throw new Error('Sesión caducada');
+        }
+        if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+        return d;
+      });
+    });
+  }
+
   /* ── API pública ────────────────────────────────────────────── */
   window.DNXWebUI = {
     applyTheme: applyTheme,

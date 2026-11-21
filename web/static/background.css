@@ -1,0 +1,182 @@
+/* DNX Background v1 — capa de fondo de la aplicación.
+ *
+ * La capa es un pseudo-elemento de <body>, no un div: así el SPA puede
+ * reescribir body.innerHTML (login, vistas) sin cargarse el fondo.
+ *
+ * Variables (las escribe background-ui.js y el script anti-FOUC del <head>):
+ *   --dnx-bg-url        url("…") de la imagen ya procesada
+ *   --dnx-bg-intensity  opacidad de la capa (0..1)
+ *   --dnx-bg-tint       color de la máscara (auto = color del tema)
+ *   --dnx-bg-veil       velo del tema sobre las salidas a color
+ *
+ * Modos (html[data-dnx-bg]): mask | color | original | none
+ */
+
+:root {
+  --dnx-bg-url: none;
+  --dnx-bg-intensity: 0;
+  --dnx-bg-tint: currentColor;
+  --dnx-bg-veil: rgba(11, 15, 20, .72);
+}
+
+:root[data-theme="light"] {
+  --dnx-bg-veil: rgba(244, 247, 251, .80);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"],
+  :root:not([data-theme]) {
+    --dnx-bg-veil: rgba(244, 247, 251, .80);
+  }
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--dnx-bg-intensity);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Máscara: un solo fichero sirve para claro y oscuro (el color lo pone el tema). */
+html[data-dnx-bg="mask"] body::before {
+  background-color: var(--dnx-bg-tint);
+  -webkit-mask-image: var(--dnx-bg-url);
+  mask-image: var(--dnx-bg-url);
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* Color con alfa: se conservan los colores de la imagen. */
+html[data-dnx-bg="color"] body::before {
+  background-image: var(--dnx-bg-url);
+}
+
+/* Original: la imagen tal cual; el velo del tema (body::after) la apaga para
+ * que el texto siga siendo legible. El velo NO escala con la intensidad. */
+html[data-dnx-bg="original"] body::before {
+  background-image: var(--dnx-bg-url);
+}
+
+html[data-dnx-bg="original"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--dnx-bg-veil);
+}
+
+/* ── Tarjeta de Ajustes → Apariencia ─────────────────────────────── */
+
+.bg-drop {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.bg-drop.drag {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.bg-drop .btn { display: inline-flex; }
+
+.bg-previews { display: flex; gap: 8px; }
+.bg-prev {
+  position: relative;
+  flex: 1;
+  height: 84px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px;
+}
+.bg-prev-dark { background: #0b0f14; }
+.bg-prev-light { background: #f4f7fb; }
+.bg-prev-layer {
+  position: absolute;
+  inset: 0;
+  display: none;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.bg-prev span {
+  position: relative;
+  z-index: 1;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .45);
+  color: #fff;
+}
+.bg-prev-light span { background: rgba(255, 255, 255, .72); color: #0f172a; }
+
+.bg-adv { margin-top: 10px; }
+.bg-adv > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 4px 0;
+  user-select: none;
+}
+.bg-adv > summary:hover { color: var(--text); }
+.bg-adv-body {
+  border-top: 1px solid var(--line-soft);
+  margin-top: 6px;
+  padding-top: 10px;
+}
+
+.bg-keyrow { display: flex; align-items: center; gap: 6px; }
+.bg-keyrow input[type="color"] {
+  width: 42px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+.bg-keyrow .input-edit { flex: 1; min-width: 0; }
+
+.bg-pick-scroll {
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  margin-bottom: 6px;
+}
+.bg-pick-scroll canvas { display: block; cursor: crosshair; }
+
+/* El contenido queda por encima de la capa. */
+.app,
+.login-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* La textura no se corta en la cabecera; el login pierde su degradado para
+ * que se vea el fondo de la instancia. */
+html[data-dnx-bg="mask"] .topbar,
+html[data-dnx-bg="color"] .topbar,
+html[data-dnx-bg="original"] .topbar,
+html[data-dnx-bg="mask"] .login-wrap,
+html[data-dnx-bg="color"] .login-wrap,
+html[data-dnx-bg="original"] .login-wrap {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before { transition: none; }
+}

@@ -2,6 +2,10 @@
 let users = [];
 let deleteTarget = null;
 let currentStatus = {};
+var S = S || {};
+if (typeof localStorage !== 'undefined') {
+  try { S.token = localStorage.getItem('dnxt_admin') || ''; } catch(e) {}
+}
 
 async function loadUsers() {
   try {

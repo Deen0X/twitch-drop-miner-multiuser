@@ -8,6 +8,7 @@
   <title>{% block title %}Twitch Drop Miner{% endblock %} - Twitch Drops Miner</title>
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="/static/dnx-web-ui.css">
+  <link rel="stylesheet" href="/static/background.css">
   <style>
     :root { --accent: {{ accent|default('#9147ff') }}; --accent-2: {{ accent_2|default('#772ce8') }}; }
   </style>
@@ -16,6 +17,25 @@
       try {
         var t = localStorage.getItem('dnx_theme') || 'auto';
         document.documentElement.setAttribute('data-theme', t);
+        /* Anti-FOUC: aplica el fondo antes de que el CSS lo vea. */
+        var b = localStorage.getItem('dnx_bg');
+        if (b) {
+          try {
+            var m = JSON.parse(b);
+            if (m && m.mode && m.mode !== 'none' && m.sha) {
+              var el = document.documentElement;
+              el.setAttribute('data-dnx-bg', m.mode);
+              el.style.setProperty('--dnx-bg-url', 'url("/branding/bg?v=' + encodeURIComponent(String(m.sha)) + '")');
+              el.style.setProperty('--dnx-bg-intensity', String(Math.max(0, Math.min(100, Number(m.intensity || 6))) / 100));
+              if (m.tint && m.tint !== 'auto' && /^#[0-9a-f]{6}$/i.test(m.tint)) {
+                el.style.setProperty('--dnx-bg-tint', m.tint);
+              }
+            } else {
+              el.removeAttribute('data-dnx-bg');
+              el.style.setProperty('--dnx-bg-intensity', '0');
+            }
+          } catch (e) { /* corrupt */ }
+        }
       } catch (e) {}
     })();
   </script>
@@ -39,7 +59,7 @@
       <a href="/telegram" class="{% if active == 'telegram' %}on{% endif %}"><span class="ico">{{ icon('telegram') }}</span>Telegram</a>
       <a href="/profile" class="{% if active == 'profile' %}on{% endif %}"><span class="ico">{{ icon('profile') }}</span>Profile</a>
       {% if is_admin %}
-      <a href="/admin" class="{% if active == 'admin' %}on{% endif %}"><span class="ico">{{ icon('users') }}</span>Users</a>
+      <a href="/admin#appearance" class="{% if active == 'admin' %}on{% endif %}"><span class="ico">{{ icon('palette') }}</span>Apariencia</a>
       {% endif %}
     </nav>
 
@@ -84,6 +104,8 @@
 <div id="toast"></div>
 
 <script src="/static/dnx-ui.js"></script>
+<script src="/static/texture-key.js"></script>
+<script src="/static/background-ui.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

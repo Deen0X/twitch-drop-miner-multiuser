@@ -1683,7 +1683,157 @@ async def api_set_update_config(request: Request):
     return set_update_config(enabled=bool(data.get("enabled", False)), hour=hour)
 
 
-async def start_runner():
+# ── Branding / DNX Background v1 ──────────────────────────────────────────
+
+BRAND_DIR = DATA_DIR / "branding"
+BRAND_DIR.mkdir(exist_ok=True)
+BRAND_JSON = BRAND_DIR / "bg.json"
+
+_IMAGE_SIGS = {
+    b"\x89PNG\r\n\x1a\n": "png",
+    b"\xff\xd8\xff": "jpg",
+    b"RIFF": None,  # webp (check below)
+}
+_WEBP_MAGIC = b"WEBP"
+
+
+def _sniff_mime(data: bytes) -> tuple[str, str] | None:
+    """Return (mime, ext) or None if not a recognized image."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png", "png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg", "jpg"
+    if data[:4] == b"RIFF" and len(data) > 8 and data[8:12] == _WEBP_MAGIC:
+        return "image/webp", "webp"
+    return None
+
+
+def _sha8(data: bytes) -> str:
+    import hashlib
+    return hashlib.sha256(data).hexdigest()[:8]
+
+
+def _load_brand_meta() -> dict:
+    """Load bg.json; return the stored dict or a default."""
+    if BRAND_JSON.exists():
+        try:
+            return json.loads(BRAND_JSON.read_text())
+        except Exception:
+            pass
+    return {"v": 1, "mode": "none", "choice": "auto", "intensity": 6,
+            "tint": "auto", "key": "auto"}
+
+
+def _save_brand_meta(d: dict) -> None:
+    d["saved_at"] = int(datetime.now(timezone.utc).timestamp())
+    BRAND_JSON.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+
+
+async def _start_runner_and_bg():
+    from web.multi_runner import cleanup_orphans
+    cleanup_orphans()
+    asyncio.create_task(multi_runner.start_monitoring())
+    from web.device_code_manager import ensure_mobile_cookie
+    all_users = user_manager.list_users()
+    for user in all_users:
+        user_dir = user_manager.ensure_user_dir(user["id"])
+        cookies_path = user_dir / "cookies.jar"
+        if cookies_path.exists():
+            settings = _read_settings_data(user["id"])
+            if settings.get("twitch_client") == "mobile_web":
+                ensure_mobile_cookie(user_dir)
+            await multi_runner.start_instance(user["id"], user_dir)
+
+
+@app.post("/api/v1/admin/branding/background")
+async def api_branding_upload(request: Request):
+    """Upload a processed background image (blob from browser)."""
+    session = _require_auth(request)
+    if not session["is_admin"]:
+        raise HTTPException(403, "Admin access required")
+    meta_qs = dict(request.query_params)
+    raw = await request.body()
+    if not raw:
+        raise HTTPException(400, "Empty body")
+    if len(raw) > 12 * 1024 * 1024:
+        raise HTTPException(400, "File too large (max 12 MB)")
+    info = _sniff_mime(raw)
+    if info is None:
+        raise HTTPException(400, "Not a recognized image (PNG/WebP/JPEG)")
+    mime, ext = info
+    brand_file = BRAND_DIR / f"bg.{ext}"
+    brand_file.write_bytes(raw)
+    meta = _load_brand_meta()
+    meta.update({
+        "v": 1, "mode": meta_qs.get("mode", "mask"),
+        "choice": meta_qs.get("choice", "auto"),
+        "intensity": int(meta_qs.get("intensity", 6)),
+        "tint": meta_qs.get("tint", "auto"),
+        "key": meta_qs.get("key", "auto"),
+        "coverage": float(meta_qs.get("coverage", 0)),
+        "params": json.loads(meta_qs.get("params", "{}") or "{}"),
+        "sha": _sha8(raw),
+        "file": f"bg.{ext}",
+        "mime": mime,
+    })
+    _save_brand_meta(meta)
+    return {"success": True, "background": meta}
+
+
+@app.delete("/api/v1/admin/branding/background")
+async def api_branding_delete(request: Request):
+    """Remove the background (mode = none)."""
+    session = _require_auth(request)
+    if not session["is_admin"]:
+        raise HTTPException(403, "Admin access required")
+    for f in BRAND_DIR.glob("bg.*"):
+        f.unlink(missing_ok=True)
+    meta = _load_brand_meta()
+    meta["mode"] = "none"
+    _save_brand_meta(meta)
+    return {"success": True}
+
+
+@app.get("/api/v1/branding")
+async def api_branding_info():
+    """Public branding info (instance_name + background). Used by login & all pages."""
+    meta = _load_brand_meta()
+    has_file = (BRAND_DIR / meta.get("file", "")).exists() if meta.get("file") else False
+    bg = None
+    if meta.get("mode") and meta["mode"] != "none" and meta.get("sha") and has_file:
+        bg = {
+            "mode": meta["mode"],
+            "choice": meta.get("choice", "auto"),
+            "intensity": meta.get("intensity", 6),
+            "tint": meta.get("tint", "auto"),
+            "key": meta.get("key", "auto"),
+            "sha": meta["sha"],
+            "coverage": meta.get("coverage", 0),
+            "params": meta.get("params", {}),
+        }
+    return {
+        "instance_name": "Twitch Drops Miner",
+        "background": bg,
+    }
+
+
+@app.get("/branding/bg")
+async def api_branding_serve(request: Request):
+    """Serve the background image. Public, cached immutable."""
+    v = request.query_params.get("v", "")
+    meta = _load_brand_meta()
+    fname = meta.get("file") or ""
+    fpath = BRAND_DIR / fname
+    if not fpath.exists() or not meta.get("sha") or meta["mode"] == "none":
+        raise HTTPException(404, "No background configured")
+    if v and meta.get("sha") != v:
+        raise HTTPException(404, "Version mismatch")
+    from starlette.responses import FileResponse
+    return FileResponse(
+        str(fpath),
+        media_type=meta.get("mime") or "application/octet-stream",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
     from web.multi_runner import cleanup_orphans
     cleanup_orphans()
     asyncio.create_task(multi_runner.start_monitoring())
@@ -1797,7 +1947,7 @@ async def _auto_update_loop() -> None:
 @app.on_event("startup")
 async def startup():
     global _history_task, _auto_update_task, _telegram_task
-    await start_runner()
+    await _start_runner_and_bg()
     _history_task = asyncio.create_task(_history_watcher())
     _auto_update_task = asyncio.create_task(_auto_update_loop())
     await _start_telegram_bot()
