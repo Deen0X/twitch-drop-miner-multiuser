@@ -108,5 +108,8 @@
 <script src="/static/texture-key.js"></script>
 <script src="/static/background-ui.js"></script>
 {% block scripts %}{% endblock %}
+<script>
+  (function(){ if (typeof DnxBg !== 'undefined') DnxBg.load(); })();
+</script>
 </body>
 </html>
