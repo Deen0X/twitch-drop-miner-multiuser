@@ -659,10 +659,13 @@ async def api_telegram_set(request: Request):
             raise HTTPException(400, "That Telegram user ID is already linked to another user")
 
     current = _read_settings_data(session["user_id"])
-    identity_changed = (
-        str(current.get("telegram_username", "")).lstrip("@").lower() != username.lower()
-        or str(current.get("telegram_user_id", "")) != user_id
-    )
+    old_username = str(current.get("telegram_username", "")).lstrip("@").lower()
+    old_user_id = str(current.get("telegram_user_id", ""))
+    identity_changed = False
+    if username and username.lower() != old_username:
+        identity_changed = True
+    if user_id and user_id != old_user_id:
+        identity_changed = True
     current["telegram_username"] = username
     current["telegram_user_id"] = user_id
     current["telegram_notifications"] = notifications
