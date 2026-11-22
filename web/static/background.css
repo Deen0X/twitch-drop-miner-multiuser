@@ -163,7 +163,6 @@ html[data-dnx-bg="original"] body::after {
 .app,
 .login-wrap {
   position: relative;
-  z-index: 1;
 }
 
 /* La textura no se corta en la cabecera; el login pierde su degradado para
