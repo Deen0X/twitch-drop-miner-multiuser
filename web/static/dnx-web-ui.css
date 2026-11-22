@@ -287,7 +287,7 @@ tbody tr:hover { background: var(--panel-2); }
 /* ── Drawer móvil ──────────────────────────────────────────────── */
 #drawer-overlay {
   position: fixed; inset: 0; z-index: 40; display: none;
-  background: rgba(2, 6, 12, .45); backdrop-filter: blur(2px);
+  background: rgba(2, 6, 12, .55);
 }
 #drawer-overlay.open { display: block; }
 .menu-btn {
