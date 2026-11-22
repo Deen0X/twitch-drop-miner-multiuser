@@ -690,6 +690,85 @@ class TelegramBot:
                 await self.send_message(int(chat_id), caption)
             await asyncio.sleep(0.25)
 
+    async def notify_new_campaign(self, user_id: int) -> None:
+        """Notify the user when a new active campaign appears for their games."""
+        cfg = get_config()
+        if not cfg.get("enabled") or not self.running:
+            return
+        settings = _read_user_settings(self.user_manager, user_id)
+        if settings.get("telegram_notifications") is False:
+            return
+        if settings.get("telegram_notify_current", True) is not True:
+            return
+        chat_id = settings.get("telegram_chat_id")
+        user_dir = self.user_manager.ensure_user_dir(user_id)
+        cache_file = user_dir / "inventory_cache.json"
+        if not cache_file.exists():
+            return
+        try:
+            with open(cache_file) as f:
+                campaigns = json.load(f)
+        except Exception:
+            return
+        if not isinstance(campaigns, list):
+            return
+
+        # Mirror the web inventory filters: active + wanted game + linked allowed.
+        active = []
+        for c in campaigns:
+            if not isinstance(c, dict):
+                continue
+            is_active, _ = _campaign_state(c)
+            if not is_active:
+                continue
+            if not _wanted_game(c, settings):
+                continue
+            if not _linked_allowed(c, settings):
+                continue
+            active.append(c)
+
+        first_run = "telegram_seen_active_campaigns" not in settings
+        seen = {str(x) for x in (settings.get("telegram_seen_active_campaigns") or [])}
+        current_ids = [str(c.get("id")) for c in active]
+        new = [c for c in active if str(c.get("id")) not in seen]
+
+        if first_run or set(current_ids) != seen:
+            settings["telegram_seen_active_campaigns"] = current_ids[-500:]
+            _write_user_settings(self.user_manager, user_id, settings)
+
+        if first_run or not chat_id:
+            return
+
+        progress = {}
+        progress_file = user_dir / "progress.json"
+        if progress_file.exists():
+            try:
+                with open(progress_file) as f:
+                    progress = json.load(f)
+            except Exception:
+                progress = {}
+        progress_drops = progress.get("drops") or {} if isinstance(progress, dict) else {}
+        current_campaign = progress.get("current_campaign") if isinstance(progress, dict) else None
+
+        for campaign in new:
+            caption = "Nueva campaña!\n" + self._campaign_caption(
+                campaign,
+                current_campaign if (current_campaign and (
+                    str(campaign.get("id")) == str(current_campaign.get("id"))
+                    or campaign.get("name") == current_campaign.get("name")
+                )) else {},
+                progress_drops if (current_campaign and (
+                    str(campaign.get("id")) == str(current_campaign.get("id"))
+                    or campaign.get("name") == current_campaign.get("name")
+                )) else {},
+            )
+            image = campaign.get("image_url") or ""
+            if image:
+                await self.send_campaign_photo(int(chat_id), image, caption)
+            else:
+                await self.send_message(int(chat_id), caption)
+            await asyncio.sleep(0.25)
+
     async def _poll_loop(self) -> None:
         assert self._session is not None
         while self._running:

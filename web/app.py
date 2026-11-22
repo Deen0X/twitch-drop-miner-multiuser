@@ -1913,6 +1913,11 @@ async def _history_watcher() -> None:
                         await _telegram_bot.notify_upcoming(user["id"])
                     except Exception as exc:
                         logger.debug("Telegram upcoming notify failed: %s", exc)
+                if _telegram_bot is not None:
+                    try:
+                        await _telegram_bot.notify_new_campaign(user["id"])
+                    except Exception as exc:
+                        logger.debug("Telegram new-campaign notify failed: %s", exc)
         except Exception as exc:
             logger.debug(f"History watcher error: {exc}")
         await asyncio.sleep(120)
